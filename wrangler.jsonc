@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dorm",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_NAME": "DormThai",
+    "DEFAULT_LOCALE": "th"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dorm-db",
+      "database_id": "local-dorm-db",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "dorm-files" }
+  ]
+}

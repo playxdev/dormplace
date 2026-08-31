@@ -1,0 +1,26 @@
+{
+  "name": "dorm",
+  "version": "1.0.0-beta.1",
+  "description": "Rental property operating system for Thai SME landlords",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "types": "wrangler types",
+    "db:init": "wrangler d1 migrations apply dorm-db --local",
+    "db:init:remote": "wrangler d1 migrations apply dorm-db --remote",
+    "db:seed": "wrangler d1 execute dorm-db --local --file ./seeds/demo.sql",
+    "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:init && npm run db:seed"
+  },
+  "dependencies": {
+    "@paulmillr/qr": "^0.3.0",
+    "hono": "^4.9.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wrangler": "^4.125.0"
+  }
+}

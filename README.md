@@ -151,6 +151,50 @@ means editing one block.
   the toggle via the View Transitions API; browsers without it swap instantly,
   and `prefers-reduced-motion` always swaps instantly.
 
+## Where this sits
+
+This is the backoffice, and it **owns the database schema**. It is one of three
+services over a single Cloudflare D1 database, `dorm-db`:
+
+| Repo | Role |
+| --- | --- |
+| playxdev/dormplace | This app — owners and staff |
+| [playxdev/dormapi](https://github.com/playxdev/dormapi) | Tenant API, Go, serving the MINI App |
+| [playxdev/dormmini](https://github.com/playxdev/dormmini) | LINE MINI App, the tenant's client |
+
+**Every schema change is a migration in this repository.** The other two
+services read the same database and define no tables of their own. A second
+database is not possible: a contract activated here has to be visible to the
+MINI App immediately, and D1 cannot query across databases.
+
+The tenant-facing design is specified in
+[`dormmini/docs/DESIGN-LINE-MINI.md`](https://github.com/playxdev/dormmini/blob/main/docs/DESIGN-LINE-MINI.md).
+
+### Identity and onboarding (migration 0003)
+
+`users` holds one row per person — owners, staff and tenants alike — because
+what someone may do is a relationship, not an attribute of them. An owner may
+rent a room elsewhere; a tenant may buy a building later.
+
+```
+identities     (provider, subject) -> user_id     line | google | facebook | email
+memberships    user_id + building_id + role       administers; seat billing counts these
+tenants.user_id                                   links the record you type to their account
+invites        opaque single-use code per contract
+contracts      confirmed_by_user_id, agreed_rent, agreed_deposit, agreed_start_date
+```
+
+`users.email` and `users.password_hash` are nullable: a tenant signing in with
+LINE has neither.
+
+A tenant record exists **before** that person has an account. You fill in the
+contract at signing; the tenant attaches their LINE identity afterwards by
+scanning the invite QR, which is why their review screen has real terms on it.
+
+The `agreed_*` columns are a snapshot taken when the tenant confirmed, not a
+reference. Amending a contract later must not move the record of what they
+agreed to.
+
 ## Architecture
 
 ```
@@ -173,7 +217,7 @@ src/
     icons.tsx        inline stroke icons (no icon font, no dependency)
     theme.ts         no-FOUC bootstrap + theme/drawer/table runtime
     walk-js.ts       live usage, drafts, offline queue
-migrations/          D1 schema (0001 core, 0002 meter walk)
+migrations/          D1 schema (0001 core, 0002 meter walk, 0003 identity + invites)
 seeds/demo.sql       synthetic demo data
 public/app.css       the entire design system, including print styles
 docs/                product research and UX specs

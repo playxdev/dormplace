@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "dorm-db",
-      "database_id": "local-dorm-db",
+      "database_id": "184bbe38-b060-4b84-9972-10ceb7289e9d",
       "migrations_dir": "./migrations"
     }
   ],

@@ -215,6 +215,9 @@ app.get('/contracts/:id', async (c) => {
       <PageHead title={`${building?.name ?? ''} ${room?.number ?? ''}`} sub={tenant?.name}>
         <a class="btn" href="/contracts">{t('common.back')}</a>
         <a class="btn" href={`/contracts/${contract.id}/print`} target="_blank">{t('invoice.print')}</a>
+        {contract.status === 'active'
+          ? <a class="btn primary" href={`/contracts/${contract.id}/invite`}>{t('invite.title')}</a>
+          : null}
       </PageHead>
 
       <div class="grid c2">

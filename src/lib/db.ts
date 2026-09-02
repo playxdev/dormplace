@@ -123,6 +123,24 @@ export class Db {
   payments(invoiceId: string) {
     return this.all<Payment>('SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_at', invoiceId);
   }
+  /** Payments a tenant reported from the MINI App that no one has matched
+   *  against a bank statement yet. Until verified they change no balance, so
+   *  they are invisible everywhere else and need surfacing on their own. */
+  pendingPayments() {
+    return this.all<{
+      id: string; invoice_id: string; number: string; amount: number; paid_at: string;
+      ref: string | null; room_number: string; tenant_name: string;
+    }>(
+      `SELECT p.id, p.invoice_id, p.amount, p.paid_at, p.ref,
+              i.number, r.number AS room_number, t.name AS tenant_name
+         FROM payments p
+         JOIN invoices i ON i.id = p.invoice_id
+         JOIN rooms r    ON r.id = i.room_id
+         JOIN tenants t  ON t.id = i.tenant_id
+        WHERE p.verified = 0
+        ORDER BY p.created_at DESC`,
+    );
+  }
   invoiceRows(opts: { period?: string; status?: string; tenantId?: string; limit?: number } = {}) {
     const where: string[] = [];
     const args: unknown[] = [];

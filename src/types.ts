@@ -63,6 +63,10 @@ export interface Payment {
   id: string; invoice_id: string; amount: number; paid_at: string;
   method: 'promptpay' | 'transfer' | 'cash' | 'card';
   ref: string | null; slip_key: string | null; verified: number; note: string | null; created_at: string;
+  /** Set when the tenant reported the payment from the MINI App; NULL when the owner recorded it. */
+  reported_by_user_id: string | null;
+  /** Deduplicates a retried submission from the MINI App; NULL for backoffice rows. */
+  idempotency_key: string | null;
 }
 
 export interface Ticket {

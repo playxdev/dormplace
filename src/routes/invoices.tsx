@@ -20,9 +20,10 @@ app.get('/invoices', async (c) => {
   const period = c.req.query('period') || '';
   const status = c.req.query('status') || '';
   const now = today();
-  const [rows, periods] = await Promise.all([
+  const [rows, periods, pending] = await Promise.all([
     db.invoiceRows({ period: period || undefined, status: status || undefined }),
     db.all<{ period: string }>('SELECT DISTINCT period FROM invoices ORDER BY period DESC LIMIT 24'),
+    db.pendingPayments(),
   ]);
 
   const totals = rows.reduce(
@@ -48,6 +49,26 @@ app.get('/invoices', async (c) => {
         </form>
         <a class="btn primary" href={`/billing?period=${period || currentPeriod()}`}>{t('nav.billing')}</a>
       </PageHead>
+
+      {pending.length > 0 ? (
+        <div class="card" style="margin-bottom:1rem">
+          <h2>{t('payment.pending')} <Tag kind="overdue" label={String(pending.length)} /></h2>
+          <p class="small muted">{t('payment.pending_hint')}</p>
+          <table>
+            <tbody>
+              {pending.map((p) => (
+                <tr>
+                  <td><a href={`/invoices/${p.invoice_id}`}>{p.number}</a>
+                    <div class="small muted">{p.room_number} · {p.tenant_name}</div></td>
+                  <td class="small">{thaiDate(p.paid_at)}<div class="small muted">{p.ref ?? ''}</div></td>
+                  <td class="num">฿{baht(p.amount)}</td>
+                  <td class="num"><a class="btn sm" href={`/invoices/${p.invoice_id}`}>{t('payment.verify')}</a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <div class="grid c3">
         <Kpi label={t('report.billed')} value={baht(totals.billed)} icon="receipt" tone="amber" currency
@@ -233,6 +254,8 @@ app.get('/invoices/:id', async (c) => {
   const { invoice } = d;
   const remaining = invoice.total - invoice.paid_total;
   const st = statusOf(invoice, today());
+  const pending = d.payments.filter((p) => !p.verified);
+  const settled = d.payments.filter((p) => p.verified);
 
   return c.html(
     <Layout {...page(c, invoice.number)}>
@@ -290,16 +313,49 @@ app.get('/invoices/:id', async (c) => {
             )}
           </div>
 
-          <div class="card">
-            <h2>{t('payment.title')}</h2>
-            {d.payments.length === 0 ? <Empty text={t('payment.none')} /> : (
+          {pending.length > 0 ? (
+            <div class="card">
+              <h2>{t('payment.pending')} <Tag kind="overdue" label={String(pending.length)} /></h2>
+              <p class="small muted">{t('payment.pending_hint')}</p>
               <table>
                 <tbody>
-                  {d.payments.map((p) => (
+                  {pending.map((p) => (
                     <tr>
                       <td>{thaiDate(p.paid_at)}<div class="small muted">{t(`payment.${p.method}` as 'payment.cash')}</div></td>
                       <td class="small">{p.ref ?? ''}
                         {p.slip_key ? <div><a href={`/files/${p.slip_key}`} target="_blank">{t('payment.slip')}</a></div> : null}
+                      </td>
+                      <td class="num">฿{baht(p.amount)}</td>
+                      <td class="num">
+                        <div class="btn-row">
+                          <form method="post" action={`/payments/${p.id}/verify`}
+                            onsubmit={`return confirm('${t('payment.verify_confirm')}')`}>
+                            <button class="btn sm primary" type="submit">{t('payment.verify')}</button>
+                          </form>
+                          <form method="post" action={`/payments/${p.id}/delete`}
+                            onsubmit={`return confirm('${t('payment.reject_confirm')}')`}>
+                            <button class="btn sm danger" type="submit">{t('payment.reject')}</button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          <div class="card">
+            <h2>{t('payment.title')}</h2>
+            {settled.length === 0 ? <Empty text={t('payment.none')} /> : (
+              <table>
+                <tbody>
+                  {settled.map((p) => (
+                    <tr>
+                      <td>{thaiDate(p.paid_at)}<div class="small muted">{t(`payment.${p.method}` as 'payment.cash')}</div></td>
+                      <td class="small">{p.ref ?? ''}
+                        {p.slip_key ? <div><a href={`/files/${p.slip_key}`} target="_blank">{t('payment.slip')}</a></div> : null}
+                        {p.reported_by_user_id ? <div class="small muted">{t('payment.by_tenant')}</div> : null}
                       </td>
                       <td class="num">฿{baht(p.amount)}</td>
                       <td class="num">
@@ -383,8 +439,12 @@ app.post('/invoices/:id/payments', async (c) => {
   const status = paidTotal >= invoice.total ? 'paid' : paidTotal > 0 ? 'partial' : 'unpaid';
 
   await db.batch([
+    // verified = 1: the owner recording a payment *is* the verification step.
+    // The MINI App counts only verified rows, so leaving this at the column
+    // default would show the tenant a balance the backoffice says is settled.
     db.prep(
-      'INSERT INTO payments (id, invoice_id, amount, paid_at, method, ref, slip_key) VALUES (?,?,?,?,?,?,?)',
+      `INSERT INTO payments (id, invoice_id, amount, paid_at, method, ref, slip_key, verified)
+       VALUES (?,?,?,?,?,?,?,1)`,
       id('p_'), invoiceId, amount, str(f.get('paid_at')) || today(),
       str(f.get('method')) || 'promptpay', str(f.get('ref')) || null, slipKey,
     ),
@@ -393,13 +453,36 @@ app.post('/invoices/:id/payments', async (c) => {
   return back(c, `/invoices/${invoiceId}`, 'paid');
 });
 
+/* A tenant-submitted notice the owner has matched against their bank statement.
+   Only now does the money become real to the rest of the system. */
+app.post('/payments/:id/verify', async (c) => {
+  const db = c.get('db');
+  const payment = await db.one<Payment>('SELECT * FROM payments WHERE id = ?', c.req.param('id'));
+  if (!payment) return c.notFound();
+  const invoice = await db.invoice(payment.invoice_id);
+  if (!invoice) return c.notFound();
+  if (payment.verified) return back(c, `/invoices/${invoice.id}`);
+
+  const paidTotal = invoice.paid_total + payment.amount;
+  const status = paidTotal >= invoice.total ? 'paid' : paidTotal > 0 ? 'partial' : 'unpaid';
+  await db.batch([
+    db.prep('UPDATE payments SET verified = 1 WHERE id = ? AND verified = 0', payment.id),
+    db.prep('UPDATE invoices SET paid_total = ?, status = ? WHERE id = ?', paidTotal, status, invoice.id),
+  ]);
+  return back(c, `/invoices/${invoice.id}`, 'verified');
+});
+
 app.post('/payments/:id/delete', async (c) => {
   const db = c.get('db');
   const payment = await db.one<Payment>('SELECT * FROM payments WHERE id = ?', c.req.param('id'));
   if (!payment) return c.notFound();
   const invoice = await db.invoice(payment.invoice_id);
   if (!invoice) return c.notFound();
-  const paidTotal = Math.max(0, invoice.paid_total - payment.amount);
+  // An unverified notice was never added to paid_total, so removing it must not
+  // subtract from it either.
+  const paidTotal = payment.verified
+    ? Math.max(0, invoice.paid_total - payment.amount)
+    : invoice.paid_total;
   const status = paidTotal >= invoice.total ? 'paid' : paidTotal > 0 ? 'partial' : 'unpaid';
   await db.batch([
     db.prep('DELETE FROM payments WHERE id = ?', payment.id),

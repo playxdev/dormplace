@@ -8,7 +8,10 @@
   "observability": { "enabled": true },
   "vars": {
     "APP_NAME": "DormThai",
-    "DEFAULT_LOCALE": "th"
+    "DEFAULT_LOCALE": "th",
+    // Permanent link to the LINE MINI App. Public by design - it is what the
+    // onboarding QR encodes, so scanning with any camera opens the app.
+    "MINI_APP_URL": "https://miniapp.line.me/2011361700-JZlB29PM"
   },
   "d1_databases": [
     {

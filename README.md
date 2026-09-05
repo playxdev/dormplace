@@ -72,12 +72,21 @@ First visit lands on `/setup` to create the owner account, then `/buildings/new`
 
 Production is **Cloudflare Pages** — `dormplace.pages.dev`.
 
+R2 must be enabled on the account before the first deploy. Without it the
+upload and the Worker compile both succeed and publishing fails on
+`R2 bucket 'dorm-files' not found`.
+
 ```bash
 npx wrangler d1 create dorm-db --location apac   # paste database_id into wrangler.jsonc
 npx wrangler r2 bucket create dorm-files
 npm run db:init:remote
 npm run deploy:pages
 ```
+
+Always reach the remote database through `migrations apply`, which is what
+`db:init:remote` runs. Applying a migration with `d1 execute --file` writes no
+row to `d1_migrations`, and the next `migrations apply` then replays from 0001
+and fails on `table users already exists`.
 
 `--location apac` matters: D1 has a single primary region, and this app makes
 several queries per page. A database in North America adds a Pacific round-trip
@@ -283,6 +292,8 @@ Honest list of what is **not** built, so nothing looks finished that isn't.
 
 - **Announcements do not reach a tenant yet.** They are written and published
   here and served by `dormapi`, but the MINI App has no screen for them.
+- **Not deployed yet.** The Pages project exists and the build pipeline works;
+  publishing waits on R2 being enabled for the account.
 - **Payment slips are not auto-verified.** The QR is real and scannable; a human
   still confirms the transfer arrived. Bank reconciliation (SCB/KBank) is unbuilt,
   and will likely need a static-IP proxy, since Workers has no fixed egress IP.

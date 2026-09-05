@@ -1,6 +1,6 @@
 {
   "name": "dorm",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0",
   "description": "Rental property operating system for Thai SME landlords",
   "private": true,
   "license": "UNLICENSED",

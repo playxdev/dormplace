@@ -89,14 +89,24 @@ const shellPage = (title: string, body: string) =>
      <div class="logo" style="justify-content:center">dorm<span class="dot">.</span>place</div>
      ${body}</div></div></body></html>`;
 
-app.notFound((c) =>
-  c.html(
+/* Static files, then the 404 page.
+ *
+ * Locally the assets binding serves public/ before the Worker ever runs, so
+ * this path is dead. On Pages the opposite is true: `_worker.js` receives every
+ * request, and an unhandled /app.css would render the 404 page as text/html
+ * with the whole site unstyled. Asking ASSETS here makes both hosts behave the
+ * same way. */
+app.notFound(async (c) => {
+  const asset = await c.env.ASSETS?.fetch(c.req.raw);
+  if (asset && asset.status < 400) return asset;
+
+  return c.html(
     shellPage('404', `<h1 style="font-size:2.5rem;margin:.5rem 0">404</h1>
       <p class="muted">ไม่พบหน้าที่ต้องการ</p>
       <a class="btn primary block" href="/">กลับหน้าแรก</a>`),
     404,
-  ),
-);
+  );
+});
 
 app.onError((err, c) => {
   console.error('unhandled', err);

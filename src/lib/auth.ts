@@ -4,7 +4,14 @@ import { id } from './util';
  * Password hashing with PBKDF2-SHA256 via WebCrypto (available in Workers).
  * Stored as `pbkdf2$<iterations>$<saltB64>$<hashB64>`.
  */
-const ITERATIONS = 120_000;
+// 100 000 is the ceiling, not a preference: the Workers runtime refuses more.
+//
+//   NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not
+//   supported (requested 120000).
+//
+// Local `wrangler dev` does not enforce it, so a higher number passes every
+// test on this machine and every sign-in fails once deployed.
+const ITERATIONS = 100_000;
 
 function b64(buf: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));

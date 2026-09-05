@@ -70,7 +70,7 @@ First visit lands on `/setup` to create the owner account, then `/buildings/new`
 
 ## Deploy
 
-Production is **Cloudflare Pages** — `dormplace.pages.dev`.
+Live at **https://dormplace.pages.dev** (Cloudflare Pages).
 
 R2 must be enabled on the account before the first deploy. Without it the
 upload and the Worker compile both succeed and publishing fails on
@@ -91,6 +91,23 @@ and fails on `table users already exists`.
 `--location apac` matters: D1 has a single primary region, and this app makes
 several queries per page. A database in North America adds a Pacific round-trip
 to every one of them for Thai users.
+
+### Two things local development cannot tell you
+
+Both passed every local check and broke in production.
+
+**PBKDF2 stops at 100 000 iterations.** The runtime refuses more —
+`NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not
+supported`. `wrangler dev` does not enforce the limit, so a higher number
+signs in perfectly on this machine and fails every sign-in once deployed. Any
+password hashed above the limit has to be rehashed; the iteration count is
+stored in the hash, so verifying an old one throws too.
+
+**Pages hands the Worker every request.** With static assets there is a
+platform layer that serves `public/` before the Worker runs; in Pages advanced
+mode `_worker.js` is first and `/app.css` reaches the router. `app.notFound`
+therefore asks `env.ASSETS` before rendering the 404 page — without it the
+whole site loads unstyled.
 
 ### Two Wrangler configs, and why
 
@@ -292,8 +309,6 @@ Honest list of what is **not** built, so nothing looks finished that isn't.
 
 - **Announcements do not reach a tenant yet.** They are written and published
   here and served by `dormapi`, but the MINI App has no screen for them.
-- **Not deployed yet.** The Pages project exists and the build pipeline works;
-  publishing waits on R2 being enabled for the account.
 - **Payment slips are not auto-verified.** The QR is real and scannable; a human
   still confirms the transfer arrived. Bank reconciliation (SCB/KBank) is unbuilt,
   and will likely need a static-IP proxy, since Workers has no fixed egress IP.
@@ -318,12 +333,11 @@ Honest list of what is **not** built, so nothing looks finished that isn't.
 ## Roadmap
 
 1. Announcements in the MINI App
-2. Deploy to production (needs R2 enabled on the account)
-3. Visual QA pass on real phones
-4. LINE OA notifications: invoice issued, payment due, receipt
-5. Bank slip auto-verification
-6. Meter photo OCR with owner confirmation
-7. VAT / e-Tax invoice for registered landlords
+2. Visual QA pass on real phones
+3. LINE OA notifications: invoice issued, payment due, receipt
+4. Bank slip auto-verification
+5. Meter photo OCR with owner confirmation
+6. VAT / e-Tax invoice for registered landlords
 
 ## Licence
 

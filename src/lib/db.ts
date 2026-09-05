@@ -1,4 +1,4 @@
-import type { Building, Contract, Invoice, InvoiceItem, MeterReading, Payment, Room, Tenant, Ticket, User } from '../types';
+import type { Announcement, Building, Contract, Invoice, InvoiceItem, MeterReading, Payment, Room, Tenant, Ticket, User } from '../types';
 
 /** Thin typed helpers over D1. Every query here is parameterised. */
 export class Db {
@@ -186,6 +186,43 @@ export class Db {
       ...args,
     );
   }
+
+  /* ---------- announcements ---------- */
+  /** Backoffice list. Drafts first because they are the ones needing a
+   *  decision, then pinned, then newest. */
+  announcementRows(buildingId?: string) {
+    const where = buildingId ? 'WHERE a.building_id = ?' : '';
+    const args = buildingId ? [buildingId] : [];
+    return this.all<AnnouncementRow>(
+      `SELECT a.*, b.name AS building_name,
+              (SELECT COUNT(*) FROM announcement_reads r WHERE r.announcement_id = a.id) AS read_count
+         FROM announcements a
+         JOIN buildings b ON b.id = a.building_id
+         ${where}
+        ORDER BY a.published_at IS NULL DESC, a.pinned DESC,
+                 COALESCE(a.published_at, a.created_at) DESC`,
+      ...args,
+    );
+  }
+  announcement(id: string) {
+    return this.one<AnnouncementRow>(
+      `SELECT a.*, b.name AS building_name,
+              (SELECT COUNT(*) FROM announcement_reads r WHERE r.announcement_id = a.id) AS read_count
+         FROM announcements a
+         JOIN buildings b ON b.id = a.building_id
+        WHERE a.id = ?`,
+      id,
+    );
+  }
+  /** How many tenants a notice for this building reaches: one per active
+   *  contract, which is what the owner is really asking before publishing. */
+  announcementAudience(buildingId: string) {
+    return this.one<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM contracts c JOIN rooms r ON r.id = c.room_id
+        WHERE r.building_id = ? AND c.status = 'active'`,
+      buildingId,
+    ).then((r) => r?.n ?? 0);
+  }
 }
 
 export type ContractRow = Contract & {
@@ -194,3 +231,4 @@ export type ContractRow = Contract & {
 };
 export type InvoiceRow = Invoice & { room_number: string; tenant_name: string; building_name: string };
 export type TicketRow = Ticket & { room_number: string; building_name: string; tenant_name: string | null };
+export type AnnouncementRow = Announcement & { building_name: string; read_count: number };

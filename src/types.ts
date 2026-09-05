@@ -79,3 +79,14 @@ export interface User {
   id: string; email: string; password_hash: string; name: string;
   role: 'owner' | 'staff'; created_at: string;
 }
+
+export interface Announcement {
+  id: string; building_id: string; title: string; body: string;
+  /** 1 keeps it above the rest of the tenant's list. */
+  pinned: number;
+  /** NULL while a draft — a tenant can only ever see a published row. */
+  published_at: string | null;
+  /** NULL stands until removed. */
+  expires_at: string | null;
+  created_by: string | null; created_at: string;
+}

@@ -43,6 +43,7 @@ standing in a stairwell.
 | **ใบแจ้งหนี้** | A4 print, PromptPay QR carrying the exact amount, Thai baht text (บาทถ้วน) |
 | **รับชำระ** | Partial and full payment, slip upload to R2, receipt (ใบเสร็จรับเงิน) |
 | **แจ้งซ่อม** | Tickets with photo, priority and status |
+| **ประกาศ** | Announcements to every tenant of a building — draft, publish, pin, expiry date, opened-by count |
 | **รายงาน** | 12-month revenue, collection rate, receivables by age, CSV export (UTF-8 BOM — Thai opens correctly in Excel) |
 | **ค้นหา** | One box over rooms, tenants, invoices and tickets |
 
@@ -195,6 +196,32 @@ The `agreed_*` columns are a snapshot taken when the tenant confirmed, not a
 reference. Amending a contract later must not move the record of what they
 agreed to.
 
+### Announcements (migration 0005)
+
+An announcement belongs to a **building**, never to a room or a person: this is
+the notice board by the lift, not a letter. Everyone holding an active contract
+in that building sees the same text.
+
+```
+announcements       building_id, title, body, pinned, published_at, expires_at
+announcement_reads  (announcement_id, user_id) — one row when a tenant opens it
+```
+
+`published_at NULL` is a draft, and nothing outside this app may read one — the
+owner can write across several sittings and publish once, rather than a
+half-written notice appearing in every tenant's app. Publishing only ever moves
+a draft forward: re-publishing an existing notice would move its date and push
+it back to the top of every tenant's list, so `/announcements/:id/publish` is
+`WHERE published_at IS NULL`.
+
+`expires_at` retires a notice about last week's water outage without anyone
+remembering to delete it. NULL stands until removed.
+
+Read state is the **absence** of a row. Announcing to a building of 100 rooms
+costs zero writes; one write lands per tenant who actually opens it. That shape
+is what keeps this inside D1's 100 k writes/day. Unpublishing keeps the read
+rows — if the notice goes out again, who has already seen it is still true.
+
 ## Architecture
 
 ```
@@ -217,7 +244,8 @@ src/
     icons.tsx        inline stroke icons (no icon font, no dependency)
     theme.ts         no-FOUC bootstrap + theme/drawer/table runtime
     walk-js.ts       live usage, drafts, offline queue
-migrations/          D1 schema (0001 core, 0002 meter walk, 0003 identity + invites)
+migrations/          D1 schema (0001 core, 0002 meter walk, 0003 identity + invites,
+                     0004 tenant payment notices, 0005 announcements)
 seeds/demo.sql       synthetic demo data
 public/app.css       the entire design system, including print styles
 docs/                product research and UX specs
@@ -232,8 +260,9 @@ lines of JavaScript on a normal page — everything else is server-rendered HTML
 
 Honest list of what is **not** built, so nothing looks finished that isn't.
 
-- **No LINE Mini App.** This is the owner console only. The tenant-facing side —
-  tenant home, QR pay, payment history, tenant maintenance requests — does not exist.
+- **Announcements are backoffice-only so far.** They are written, published and
+  counted here; the tenant API and the MINI App screen that show them are not
+  built yet, so no tenant sees one.
 - **Payment slips are not auto-verified.** The QR is real and scannable; a human
   still confirms the transfer arrived. Bank reconciliation (SCB/KBank) is unbuilt,
   and will likely need a static-IP proxy, since Workers has no fixed egress IP.
@@ -257,12 +286,13 @@ Honest list of what is **not** built, so nothing looks finished that isn't.
 
 ## Roadmap
 
-1. Visual QA pass on real phones
-2. LINE Mini App for tenants — bill, QR pay, history
-3. LINE OA notifications: invoice issued, payment due, receipt
-4. Bank slip auto-verification
-5. Meter photo OCR with owner confirmation
-6. VAT / e-Tax invoice for registered landlords
+1. Announcements in the tenant API and the MINI App
+2. Deploy to production (needs R2 enabled on the account)
+3. Visual QA pass on real phones
+4. LINE OA notifications: invoice issued, payment due, receipt
+5. Bank slip auto-verification
+6. Meter photo OCR with owner confirmation
+7. VAT / e-Tax invoice for registered landlords
 
 ## Licence
 

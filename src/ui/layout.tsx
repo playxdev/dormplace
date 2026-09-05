@@ -47,6 +47,7 @@ const NAV: NavGroup[] = [
   ] },
   { label: 'nav.group_ops', items: [
     { href: '/tickets', key: 'nav.tickets', icon: 'wrench' },
+    { href: '/announcements', key: 'nav.announcements', icon: 'bell' },
     { href: '/reports', key: 'nav.reports', icon: 'chart' },
   ] },
 ];

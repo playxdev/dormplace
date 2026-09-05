@@ -260,9 +260,8 @@ lines of JavaScript on a normal page — everything else is server-rendered HTML
 
 Honest list of what is **not** built, so nothing looks finished that isn't.
 
-- **Announcements are backoffice-only so far.** They are written, published and
-  counted here; the tenant API and the MINI App screen that show them are not
-  built yet, so no tenant sees one.
+- **Announcements do not reach a tenant yet.** They are written and published
+  here and served by `dormapi`, but the MINI App has no screen for them.
 - **Payment slips are not auto-verified.** The QR is real and scannable; a human
   still confirms the transfer arrived. Bank reconciliation (SCB/KBank) is unbuilt,
   and will likely need a static-IP proxy, since Workers has no fixed egress IP.
@@ -286,7 +285,7 @@ Honest list of what is **not** built, so nothing looks finished that isn't.
 
 ## Roadmap
 
-1. Announcements in the tenant API and the MINI App
+1. Announcements in the MINI App
 2. Deploy to production (needs R2 enabled on the account)
 3. Visual QA pass on real phones
 4. LINE OA notifications: invoice issued, payment due, receipt

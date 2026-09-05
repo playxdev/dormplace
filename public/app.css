@@ -815,7 +815,10 @@ td.num, th.num { text-align: right; font-family: var(--font-num); font-variant-n
    Thumb-reachable actions, oversized numeric inputs, always-visible progress.
    ========================================================================== */
 
-.field {
+/* The shell is .field-shell, not .field: a form field wrapper already owns
+   .field (see FORMS above), and a full-height flex column landing on all 85 of
+   them turned every form on the site into one screen per input. */
+.field-shell {
   --field-max: 480px;
   min-height: 100vh;
   min-height: 100dvh;

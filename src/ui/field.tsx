@@ -27,7 +27,7 @@ export const FieldShell: FC<PropsWithChildren<FieldProps>> = ({
       <Head title={`${title} · dorm.place`} />
     </head>
     <body>
-      <div class="field">
+      <div class="field-shell">
         <header class="field-top">
           <div class="bar">
             {back

@@ -6,20 +6,23 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "wrangler dev -c wrangler.dev.jsonc",
+    "deploy": "npm run deploy:pages",
     "typecheck": "tsc --noEmit",
-    "types": "wrangler types",
-    "db:init": "wrangler d1 migrations apply dorm-db --local",
-    "db:init:remote": "wrangler d1 migrations apply dorm-db --remote",
-    "db:seed": "wrangler d1 execute dorm-db --local --file ./seeds/demo.sql",
-    "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:init && npm run db:seed"
+    "types": "wrangler types -c wrangler.dev.jsonc",
+    "db:init": "wrangler d1 migrations apply dorm-db --local -c wrangler.dev.jsonc",
+    "db:init:remote": "wrangler d1 migrations apply dorm-db --remote -c wrangler.dev.jsonc",
+    "db:seed": "wrangler d1 execute dorm-db --local --file ./seeds/demo.sql -c wrangler.dev.jsonc",
+    "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:init && npm run db:seed",
+    "build:pages": "esbuild src/index.tsx --bundle --format=esm --target=es2022 --jsx=automatic --jsx-import-source=hono/jsx --conditions=workerd,worker,browser --outfile=dist/_worker.js && cp -R public/. dist/",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy"
   },
   "dependencies": {
     "@paulmillr/qr": "^0.3.0",
     "hono": "^4.9.10"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3",
     "wrangler": "^4.125.0"
   }

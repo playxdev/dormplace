@@ -6,3 +6,4 @@ worker-configuration.d.ts
 
 # Windows/WSL alternate-data-stream artifacts
 *:Zone.Identifier
+dist

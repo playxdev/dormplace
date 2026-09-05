@@ -59,7 +59,7 @@ English available via the topbar toggle.
 npm install
 npm run db:init      # apply migrations to the local D1
 npm run db:seed      # optional: 2 buildings, 56 rooms, 40 tenants, contracts
-npm run dev          # http://localhost:8787
+npm run dev          # http://localhost:8787 (reads wrangler.dev.jsonc)
 ```
 
 First visit lands on `/setup` to create the owner account, then `/buildings/new`.
@@ -70,16 +70,37 @@ First visit lands on `/setup` to create the owner account, then `/buildings/new`
 
 ## Deploy
 
+Production is **Cloudflare Pages** — `dormplace.pages.dev`.
+
 ```bash
 npx wrangler d1 create dorm-db --location apac   # paste database_id into wrangler.jsonc
 npx wrangler r2 bucket create dorm-files
 npm run db:init:remote
-npx wrangler deploy
+npm run deploy:pages
 ```
 
 `--location apac` matters: D1 has a single primary region, and this app makes
 several queries per page. A database in North America adds a Pacific round-trip
 to every one of them for Thai users.
+
+### Two Wrangler configs, and why
+
+| File | Used by | Shape |
+| --- | --- | --- |
+| `wrangler.jsonc` | `wrangler pages deploy`, Pages builds | Pages: `pages_build_output_dir`, bindings |
+| `wrangler.dev.jsonc` | `npm run dev`, `wrangler types` | Worker: `main`, static assets, same bindings |
+
+Pages commands reject `-c` — *"Pages does not support custom paths for the
+Wrangler configuration file"* — so the Pages configuration has to be the root
+file. Local development keeps the Worker shape because it serves `src/`
+directly with hot reload, where the Pages build serves a bundle.
+
+**The bindings appear in both files. Change one, change the other.**
+
+`npm run build:pages` bundles `src/index.tsx` into `dist/_worker.js` with
+esbuild and copies `public/` beside it — Pages advanced mode: static files win,
+everything else reaches the Worker, exactly as the assets binding behaves
+locally.
 
 ## The two meter modes
 

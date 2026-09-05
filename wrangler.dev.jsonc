@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Local development only: `npm run dev` runs the app as a Worker, which
+  // serves src/ directly with hot reload. The deployed configuration is the
+  // root `wrangler.jsonc` (Pages).
+  "name": "dorm",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_NAME": "DormThai",
+    "DEFAULT_LOCALE": "th",
+    // Permanent link to the LINE MINI App. Public by design - it is what the
+    // onboarding QR encodes, so scanning with any camera opens the app.
+    "MINI_APP_URL": "https://miniapp.line.me/2011361700-JZlB29PM"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dorm-db",
+      "database_id": "184bbe38-b060-4b84-9972-10ceb7289e9d",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "dorm-files" }
+  ]
+}

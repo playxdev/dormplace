@@ -17,6 +17,7 @@ import meters from './routes/meters';
 import billing from './routes/billing';
 import invoices from './routes/invoices';
 import invites from './routes/invites';
+import lease from './routes/lease';
 import tickets from './routes/tickets';
 import announcements from './routes/announcements';
 import reports from './routes/reports';
@@ -49,7 +50,10 @@ app.use('*', async (c, next) => {
 /* Session gate. Everything except /login and /setup requires a signed-in user. */
 app.use('*', async (c, next) => {
   const path = new URL(c.req.url).pathname;
-  if (PUBLIC_PATHS.has(path) || path === '/app.css' || path.startsWith('/assets/')) return next();
+  // /lease/:code authorises itself with the invite code it is given, which is
+  // the only credential a tenant has before they have an account.
+  if (PUBLIC_PATHS.has(path) || path === '/app.css'
+      || path.startsWith('/assets/') || path.startsWith('/lease/')) return next();
 
   const sid = getCookie(c, SESSION_COOKIE);
   const user = sid ? await c.get('db').userBySession(sid) : null;
@@ -73,6 +77,7 @@ app.route('/', meters);
 app.route('/', billing);
 app.route('/', invoices);
 app.route('/', invites);
+app.route('/', lease);
 app.route('/', tickets);
 app.route('/', announcements);
 app.route('/', reports);

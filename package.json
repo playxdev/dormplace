@@ -15,7 +15,7 @@
     "db:seed": "wrangler d1 execute dorm-db --local --file ./seeds/demo.sql -c wrangler.dev.jsonc",
     "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:init && npm run db:seed",
     "build:pages": "esbuild src/index.tsx --bundle --format=esm --target=es2022 --jsx=automatic --jsx-import-source=hono/jsx --conditions=workerd,worker,browser --outfile=dist/_worker.js && cp -R public/. dist/",
-    "deploy:pages": "npm run build:pages && wrangler pages deploy"
+    "deploy:pages": "npm run build:pages && wrangler pages deploy --branch main"
   },
   "dependencies": {
     "@paulmillr/qr": "^0.3.0",

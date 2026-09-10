@@ -9,7 +9,7 @@
     "dev": "wrangler dev -c wrangler.dev.jsonc",
     "deploy": "npm run deploy:pages",
     "typecheck": "tsc --noEmit",
-    "test": "node test/isolation.test.mjs",
+    "test": "node test/isolation.test.mjs && node test/dates.test.mjs",
     "lint:sql": "node test/no-raw-sql.mjs",
     "check": "npm run typecheck && npm run lint:sql && npm test",
     "types": "wrangler types -c wrangler.dev.jsonc",

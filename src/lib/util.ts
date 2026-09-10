@@ -60,13 +60,50 @@ export function bahtText(satang: number): string {
 
 /* ---------- dates ---------- */
 
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * The one timezone this vertical serves.
+ *
+ * `tenant.timezone` exists and every row defaults to this; the platform is
+ * multi-tenant but the DORM vertical is Thailand-only, and the day an operator
+ * outside it is onboarded these two functions take `ctx.timezone` instead of
+ * this constant. Written down rather than assumed, because "today" being wrong
+ * is not a visible failure — it is a form that defaults to yesterday.
+ */
+export const PLATFORM_TZ = 'Asia/Bangkok';
+
+/**
+ * Today, on the operator's calendar.
+ *
+ * This used to be `toISOString().slice(0, 10)`, which is UTC. Thailand is
+ * UTC+7, so between midnight and 07:00 every one of these was a day behind:
+ * a payment recorded at 01:00 defaulted to yesterday, an invoice issued at
+ * 03:00 was dated yesterday, and an invoice due today read as not yet due —
+ * while the resident's app, which computes the same thing in Bangkok, already
+ * said OVERDUE. Two screens disagreeing about one row is worse than either
+ * answer alone.
+ *
+ * `en-CA` is not decoration: its short date format is ISO's, so this is
+ * YYYY-MM-DD without assembling it from parts.
+ */
+export function today(tz: string = PLATFORM_TZ): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
-/** current billing period, YYYY-MM */
-export function currentPeriod(): string {
-  return new Date().toISOString().slice(0, 7);
+/**
+ * Current billing period, YYYY-MM.
+ *
+ * The same seven hours, and worse: on the first of a month they fell into the
+ * previous one, so the billing screen opened at 02:00 on 1 October offered
+ * September's run — which had already been issued, and which
+ * `ux_invoice_contract_period` would then refuse after the work was done.
+ */
+export function currentPeriod(tz: string = PLATFORM_TZ): string {
+  return today(tz).slice(0, 7);
 }
 
 export function periodBounds(period: string): { start: string; end: string; days: number } {

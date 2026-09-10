@@ -13,6 +13,7 @@ import { InvitationRepo } from './invitation';
 import { ForbiddenError, GuardFailedError, NotFoundError, type TenantContext } from '../lib/tenant-context';
 import { has } from '../lib/perm';
 import { ulid } from '../lib/ulid';
+import { addDays, today as platformToday } from '../lib/util';
 import { AuditRepo } from './audit';
 import * as spec from './specs';
 import type {
@@ -732,7 +733,7 @@ export class InvoiceRepo extends TenantScopedRepo<Invoice> {
       .bind(...args, Math.min(opt.limit ?? 500, 1000))
       .all<InvoiceRow>();
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = platformToday();
     return (res.results ?? []).map((row) => ({
       ...row,
       effective_status: this.effectiveStatus(row, Number(row.paid), today),
@@ -1482,7 +1483,9 @@ export class StatsRepo {
 
   /** Leases running out within `days`, so nobody is surprised by a move-out. */
   async expiringLeases(ctx: TenantContext, days = 45): Promise<number> {
-    const limit = new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10);
+    // Counted forward from the operator's day, not from UTC's: the same seven
+    // hours that made `today()` wrong moved this boundary by a day.
+    const limit = addDays(platformToday(), days);
     const row = await this.d1
       .prepare(
         `SELECT COUNT(*) AS n FROM contract

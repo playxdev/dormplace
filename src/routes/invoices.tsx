@@ -1,33 +1,36 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Head, Icon, Kpi, Layout, PageHead, RailStat, Tag } from '../ui/layout';
-import { baht, bahtText, currentPeriod, fromSatang, id, num, str, thaiDate, thaiPeriod, today } from '../lib/util';
+import { baht, bahtText, currentPeriod, fromSatang, num, statusKey, str, thaiDate, thaiPeriod, today } from '../lib/util';
 import { promptPayPayloadSatang } from '../lib/promptpay';
 import { qrSvg } from '../lib/qr';
-import type { Building, Contract, Invoice, InvoiceItem, Payment, Room, Tenant } from '../types';
+import { ulid } from '../lib/ulid';
+import type { Building, Contract, Invoice, InvoiceItem, Payment, Room } from '../repo/types';
+import type { Resident } from '../repo';
 import type { T } from '../lib/i18n';
 import type { Ctx } from '../app';
 
 const app = route();
 
-function statusOf(inv: Invoice, now: string): string {
-  if (inv.status === 'unpaid' && inv.due_date < now) return 'overdue';
-  return inv.status;
-}
-
 app.get('/invoices', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.invoice.read');
+  const repos = c.get('repos');
   const period = c.req.query('period') || '';
   const status = c.req.query('status') || '';
   const now = today();
-  const [rows, periods, pending] = await Promise.all([
-    db.invoiceRows({ period: period || undefined, status: status || undefined }),
-    db.all<{ period: string }>('SELECT DISTINCT period FROM invoices ORDER BY period DESC LIMIT 24'),
-    db.pendingPayments(),
+  const [all, periods, pending] = await Promise.all([
+    repos.invoices.rows(tctx, { period: period || undefined }),
+    repos.invoices.periods(tctx),
+    repos.payments.pendingRows(tctx),
   ]);
 
+  // The status filter runs over the effective status, not the stored one:
+  // "overdue" and "partial" are not columns, so the database cannot filter them.
+  const rows = status ? all.filter((r) => statusKey(r.effective_status) === status) : all;
+
   const totals = rows.reduce(
-    (acc, r) => ({ billed: acc.billed + r.total, paid: acc.paid + r.paid_total }),
+    (acc, r) => ({ billed: acc.billed + r.total, paid: acc.paid + r.paid }),
     { billed: 0, paid: 0 },
   );
 
@@ -37,7 +40,7 @@ app.get('/invoices', async (c) => {
         <form method="get" action="/invoices" class="btn-row">
           <select name="period">
             <option value="">{t('common.all')}</option>
-            {periods.map((p) => <option value={p.period} selected={p.period === period}>{thaiPeriod(p.period)}</option>)}
+            {periods.map((p) => <option value={p} selected={p === period}>{thaiPeriod(p)}</option>)}
           </select>
           <select name="status">
             <option value="">{t('common.all')}</option>
@@ -95,15 +98,15 @@ app.get('/invoices', async (c) => {
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const st = statusOf(r, now);
+                  const st = statusKey(r.effective_status);
                   return (
                     <tr>
-                      <td><a href={`/invoices/${r.id}`}>{r.number}</a><div class="small muted">{thaiPeriod(r.period)}</div></td>
+                      <td><a href={`/invoices/${r.invoice_id}`}>{r.number}</a><div class="small muted">{thaiPeriod(r.period)}</div></td>
                       <td>{r.room_number}</td>
-                      <td class="small">{r.tenant_name}</td>
+                      <td class="small">{r.party_name}</td>
                       <td class="small">{thaiDate(r.due_date)}</td>
                       <td class="num">฿{baht(r.total)}</td>
-                      <td class="num">{r.total - r.paid_total > 0 ? `฿${baht(r.total - r.paid_total)}` : '-'}</td>
+                      <td class="num">{r.total - r.paid > 0 ? `฿${baht(r.total - r.paid)}` : '-'}</td>
                       <td class="num"><Tag kind={st} label={t(`invoice.${st}` as 'invoice.paid')} /></td>
                     </tr>
                   );
@@ -119,29 +122,27 @@ app.get('/invoices', async (c) => {
 
 interface FullInvoice {
   invoice: Invoice; items: InvoiceItem[]; payments: Payment[];
-  room: Room; tenant: Tenant; building: Building; contract: Contract | null;
+  /** Verified payments only, and what is left. Neither is stored. */
+  paid: number; remaining: number;
+  room: Room; tenant: Resident; building: Building; contract: Contract | null;
 }
 
-async function loadInvoice(c: Ctx, invoiceId: string): Promise<FullInvoice | null> {
-  const db = c.get('db');
-  const invoice = await db.invoice(invoiceId);
-  if (!invoice) return null;
-  const [items, payments, room, tenant, building, contract] = await Promise.all([
-    db.invoiceItems(invoice.id),
-    db.payments(invoice.id),
-    db.room(invoice.room_id),
-    db.tenant(invoice.tenant_id),
-    db.building(invoice.building_id),
-    db.contract(invoice.contract_id),
+async function loadInvoice(c: Ctx, invoiceId: string): Promise<FullInvoice> {
+  const tctx = c.get('tctx');
+  const repos = c.get('repos');
+  const full = await repos.invoices.full(tctx, invoiceId);
+  const [room, tenant, building, contract] = await Promise.all([
+    repos.rooms.byId(tctx, full.invoice.room_id),
+    repos.parties.resident(tctx, full.invoice.party_id),
+    repos.buildings.byId(tctx, full.invoice.building_id),
+    repos.contracts.findById(tctx, full.invoice.contract_id),
   ]);
-  if (!room || !tenant || !building) return null;
-  return { invoice, items, payments, room, tenant, building, contract };
+  return { ...full, room, tenant, building, contract };
 }
 
 /** The printable A4 document, reused for both the invoice and the receipt. */
 function Paper({ d, t, receipt }: { d: FullInvoice; t: T; receipt: boolean }) {
-  const { invoice, items, building, room, tenant, payments } = d;
-  const remaining = invoice.total - invoice.paid_total;
+  const { invoice, items, building, room, tenant, payments, paid, remaining } = d;
   const payload = building.promptpay_id && remaining > 0
     ? promptPayPayloadSatang(building.promptpay_id, remaining)
     : null;
@@ -200,13 +201,13 @@ function Paper({ d, t, receipt }: { d: FullInvoice; t: T; receipt: boolean }) {
           <tr><td>{t('invoice.subtotal')}</td><td class="num">{baht(invoice.subtotal)}</td></tr>
           {invoice.discount > 0 ? <tr><td>{t('invoice.discount')}</td><td class="num">-{baht(invoice.discount)}</td></tr> : null}
           <tr class="grand"><td>{t('invoice.total')}</td><td class="num">฿{baht(invoice.total)}</td></tr>
-          {invoice.paid_total > 0 ? <tr><td>{t('invoice.paid')}</td><td class="num">-{baht(invoice.paid_total)}</td></tr> : null}
+          {paid > 0 ? <tr><td>{t('invoice.paid')}</td><td class="num">-{baht(paid)}</td></tr> : null}
           {remaining > 0 ? <tr class="grand"><td>{t('invoice.remaining')}</td><td class="num">฿{baht(remaining)}</td></tr> : null}
         </tbody>
       </table>
 
       <div class="small" style="text-align:right;margin-top:.2rem">
-        ({bahtText(receipt ? invoice.paid_total : invoice.total)})
+        ({bahtText(receipt ? paid : invoice.total)})
       </div>
 
       {receipt ? (
@@ -249,21 +250,21 @@ function Paper({ d, t, receipt }: { d: FullInvoice; t: T; receipt: boolean }) {
 
 app.get('/invoices/:id', async (c) => {
   const t = c.get('t');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.invoice.read');
   const d = await loadInvoice(c, c.req.param('id'));
-  if (!d) return c.notFound();
-  const { invoice } = d;
-  const remaining = invoice.total - invoice.paid_total;
-  const st = statusOf(invoice, today());
-  const pending = d.payments.filter((p) => !p.verified);
-  const settled = d.payments.filter((p) => p.verified);
+  const { invoice, paid, remaining } = d;
+  const st = statusKey(c.get('repos').invoices.effectiveStatus(invoice, paid, today()));
+  const pending = d.payments.filter((p) => p.status === 'REPORTED');
+  const settled = d.payments.filter((p) => p.status === 'VERIFIED');
 
   return c.html(
     <Layout {...page(c, invoice.number)}>
-      <PageHead title={invoice.number} sub={`${d.building.name} ${d.room.number} · ${d.tenant.name}`}>
+      <PageHead title={invoice.number} sub={`${d.building.name} ${d.room.number} · ${d.tenant.display_name ?? ''}`}>
         <a class="btn" href="/invoices">{t('common.back')}</a>
-        <a class="btn" href={`/invoices/${invoice.id}/print`} target="_blank">{t('invoice.print')}</a>
-        {invoice.paid_total > 0
-          ? <a class="btn" href={`/invoices/${invoice.id}/receipt`} target="_blank">{t('invoice.receipt')}</a>
+        <a class="btn" href={`/invoices/${invoice.invoice_id}/print`} target="_blank">{t('invoice.print')}</a>
+        {paid > 0
+          ? <a class="btn" href={`/invoices/${invoice.invoice_id}/receipt`} target="_blank">{t('invoice.receipt')}</a>
           : null}
       </PageHead>
 
@@ -275,8 +276,8 @@ app.get('/invoices/:id', async (c) => {
         <div>
           <div class="card">
             <h2>{t('payment.record')} <Tag kind={st} label={t(`invoice.${st}` as 'invoice.paid')} /></h2>
-            {remaining > 0 && invoice.status !== 'void' ? (
-              <form method="post" action={`/invoices/${invoice.id}/payments`} enctype="multipart/form-data">
+            {remaining > 0 && invoice.status !== 'VOID' ? (
+              <form method="post" action={`/invoices/${invoice.invoice_id}/payments`} enctype="multipart/form-data">
                 <div class="row">
                   <div class="field">
                     <label for="amount">{t('payment.amount')}</label>
@@ -309,7 +310,7 @@ app.get('/invoices/:id', async (c) => {
                 <button class="btn primary" type="submit">{t('payment.record')}</button>
               </form>
             ) : (
-              <p class="muted">{invoice.status === 'void' ? t('invoice.void') : t('invoice.paid')}</p>
+              <p class="muted">{invoice.status === 'VOID' ? t('invoice.void') : t('invoice.paid')}</p>
             )}
           </div>
 
@@ -371,9 +372,15 @@ app.get('/invoices/:id', async (c) => {
             )}
           </div>
 
-          {invoice.status !== 'void' && invoice.paid_total === 0 ? (
-            <form method="post" action={`/invoices/${invoice.id}/void`} class="card"
+          {invoice.status !== 'VOID' && paid === 0 ? (
+            <form method="post" action={`/invoices/${invoice.invoice_id}/void`} class="card"
               onsubmit={`return confirm('${t('common.confirm_delete')}')`}>
+              {/* Required: an invoice cancelled for no recorded reason is the
+                  shape internal fraud takes in this business. */}
+              <div class="field">
+                <label for="void_reason">{t('invoice.void_reason')}</label>
+                <input id="void_reason" name="reason" required />
+              </div>
               <button class="btn danger" type="submit">{t('invoice.void')}</button>
             </form>
           ) : null}
@@ -417,10 +424,11 @@ app.get('/invoices/:id/receipt', async (c) => {
 /* ---------- payments ---------- */
 
 app.post('/invoices/:id/payments', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.payment.record');
+  const repos = c.get('repos');
   const invoiceId = c.req.param('id');
-  const invoice = await db.invoice(invoiceId);
-  if (!invoice) return c.notFound();
+  await repos.invoices.byId(tctx, invoiceId);
 
   const f = await c.req.formData();
   const amount = Math.round(num(f.get('amount')) * 100);
@@ -429,72 +437,71 @@ app.post('/invoices/:id/payments', async (c) => {
   let slipKey: string | null = null;
   const slip = f.get('slip');
   if (slip instanceof File && slip.size > 0) {
-    slipKey = `slips/${invoiceId}/${id('')}`;
+    slipKey = `t/${tctx.tenantId}/slips/${invoiceId}/${ulid()}`;
     await c.env.FILES.put(slipKey, await slip.arrayBuffer(), {
       httpMetadata: { contentType: slip.type || 'application/octet-stream' },
     });
   }
 
-  const paidTotal = invoice.paid_total + amount;
-  const status = paidTotal >= invoice.total ? 'paid' : paidTotal > 0 ? 'partial' : 'unpaid';
-
-  await db.batch([
-    // verified = 1: the owner recording a payment *is* the verification step.
-    // The MINI App counts only verified rows, so leaving this at the column
-    // default would show the tenant a balance the backoffice says is settled.
-    db.prep(
-      `INSERT INTO payments (id, invoice_id, amount, paid_at, method, ref, slip_key, verified)
-       VALUES (?,?,?,?,?,?,?,1)`,
-      id('p_'), invoiceId, amount, str(f.get('paid_at')) || today(),
-      str(f.get('method')) || 'promptpay', str(f.get('ref')) || null, slipKey,
-    ),
-    db.prep('UPDATE invoices SET paid_total = ?, status = ? WHERE id = ?', paidTotal, status, invoiceId),
-  ]);
+  const method = str(f.get('method')).toUpperCase() || 'PROMPTPAY';
+  const payment = await repos.payments.insert(tctx, {
+    invoice_id: invoiceId,
+    amount,
+    paid_at: str(f.get('paid_at')) || today(),
+    method: method as 'PROMPTPAY',
+    ref: str(f.get('ref')) || null,
+    slip_key: slipKey,
+  });
+  // Staff taking money at the desk *is* the verification step. Left as
+  // REPORTED it would sit in their own queue and the resident would keep
+  // seeing a balance the office considers settled.
+  await repos.payments.decide(tctx, payment.payment_id, 'VERIFIED');
   return back(c, `/invoices/${invoiceId}`, 'paid');
 });
 
 /* A tenant-submitted notice the owner has matched against their bank statement.
    Only now does the money become real to the rest of the system. */
 app.post('/payments/:id/verify', async (c) => {
-  const db = c.get('db');
-  const payment = await db.one<Payment>('SELECT * FROM payments WHERE id = ?', c.req.param('id'));
-  if (!payment) return c.notFound();
-  const invoice = await db.invoice(payment.invoice_id);
-  if (!invoice) return c.notFound();
-  if (payment.verified) return back(c, `/invoices/${invoice.id}`);
+  const tctx = c.get('tctx');
+  const repos = c.get('repos');
+  const payment = await repos.payments.byId(tctx, c.req.param('id'));
+  // decide() guards on status = 'REPORTED', so verifying twice changes nothing
+  // and writes no second audit row.
+  await repos.payments.decide(tctx, payment.payment_id, 'VERIFIED');
+  return back(c, `/invoices/${payment.invoice_id}`, 'verified');
+});
 
-  const paidTotal = invoice.paid_total + payment.amount;
-  const status = paidTotal >= invoice.total ? 'paid' : paidTotal > 0 ? 'partial' : 'unpaid';
-  await db.batch([
-    db.prep('UPDATE payments SET verified = 1 WHERE id = ? AND verified = 0', payment.id),
-    db.prep('UPDATE invoices SET paid_total = ?, status = ? WHERE id = ?', paidTotal, status, invoice.id),
-  ]);
-  return back(c, `/invoices/${invoice.id}`, 'verified');
+app.post('/payments/:id/reject', async (c) => {
+  const tctx = c.get('tctx');
+  const repos = c.get('repos');
+  const payment = await repos.payments.byId(tctx, c.req.param('id'));
+  const reason = str((await c.req.formData()).get('reason'));
+  if (!reason) return back(c, `/invoices/${payment.invoice_id}`, 'missing', true);
+  // The reason is shown to the resident verbatim. "Rejected" with nothing after
+  // it is how someone who really did pay ends up phoning the office.
+  await repos.payments.decide(tctx, payment.payment_id, 'REJECTED', reason);
+  return back(c, `/invoices/${payment.invoice_id}`, 'saved');
 });
 
 app.post('/payments/:id/delete', async (c) => {
-  const db = c.get('db');
-  const payment = await db.one<Payment>('SELECT * FROM payments WHERE id = ?', c.req.param('id'));
-  if (!payment) return c.notFound();
-  const invoice = await db.invoice(payment.invoice_id);
-  if (!invoice) return c.notFound();
-  // An unverified notice was never added to paid_total, so removing it must not
-  // subtract from it either.
-  const paidTotal = payment.verified
-    ? Math.max(0, invoice.paid_total - payment.amount)
-    : invoice.paid_total;
-  const status = paidTotal >= invoice.total ? 'paid' : paidTotal > 0 ? 'partial' : 'unpaid';
-  await db.batch([
-    db.prep('DELETE FROM payments WHERE id = ?', payment.id),
-    db.prep('UPDATE invoices SET paid_total = ?, status = ? WHERE id = ?', paidTotal, status, invoice.id),
-  ]);
-  if (payment.slip_key) await c.env.FILES.delete(payment.slip_key);
-  return back(c, `/invoices/${invoice.id}`, 'deleted');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.payment.verify');
+  const repos = c.get('repos');
+  const payment = await repos.payments.byId(tctx, c.req.param('id'));
+  // Soft delete, and the balance follows automatically: it is derived from the
+  // payments still visible, so there is no total to correct and nothing to get
+  // wrong. The slip stays in R2 as evidence of what was submitted.
+  await repos.payments.softDelete(tctx, payment.payment_id);
+  return back(c, `/invoices/${payment.invoice_id}`, 'deleted');
 });
 
 app.post('/invoices/:id/void', async (c) => {
+  const tctx = c.get('tctx');
   const invoiceId = c.req.param('id');
-  await c.get('db').run("UPDATE invoices SET status = 'void' WHERE id = ? AND paid_total = 0", invoiceId);
+  const reason = str((await c.req.formData()).get('reason'));
+  if (!reason) return back(c, `/invoices/${invoiceId}`, 'missing', true);
+  // OWNER only, reason required, audited — checked inside void().
+  await c.get('repos').invoices.void(tctx, invoiceId, reason);
   return back(c, `/invoices/${invoiceId}`, 'voided');
 });
 

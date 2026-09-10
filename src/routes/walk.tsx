@@ -1,7 +1,9 @@
-import { back, page, route, type Ctx } from '../app';
+import { back, page, requirePermission, route, type Ctx } from '../app';
 import { FieldShell, Icon } from '../ui/field';
 import { Empty, Layout, PageHead } from '../ui/layout';
-import { currentPeriod, id, num, str, thaiDate, thaiPeriod, today } from '../lib/util';
+import { currentPeriod, num, str, thaiDate, thaiPeriod, today } from '../lib/util';
+import { ulid } from '../lib/ulid';
+import type { WalkRoom } from '../repo';
 import type { T } from '../lib/i18n';
 import type { FC } from 'hono/jsx';
 
@@ -9,51 +11,14 @@ const app = route();
 
 /* ------------------------------------------------------------------ data --- */
 
-interface WalkRoom {
-  id: string; number: string; floor: number;
-  tenant_id: string | null; tenant_name: string | null; moved_in: string | null;
-  water_prev: number | null; water_now: number | null; water_status: string | null;
-  elec_prev: number | null;  elec_now: number | null;  elec_status: string | null;
-  /** Mean monthly usage over prior periods, used to flag a spike. */
-  water_avg: number; elec_avg: number;
-  contract_water_start: number; contract_electric_start: number;
-}
-
 /**
- * Every room of a building for one period, in walking order
- * (floor, then room number) with previous readings resolved.
+ * Every room of a building for one period, in walking order.
+ *
+ * The shape and the query live in MeterRepo — the walk is the same data the
+ * office grid shows, read differently.
  */
-async function walkRooms(c: Ctx, buildingId: string, period: string): Promise<WalkRoom[]> {
-  return c.get('db').all<WalkRoom>(
-    `SELECT r.id, r.number, r.floor,
-            ct.tenant_id, t.name AS tenant_name, ct.start_date AS moved_in,
-            COALESCE(ct.water_start, 0)    AS contract_water_start,
-            COALESCE(ct.electric_start, 0) AS contract_electric_start,
-            (SELECT m.value  FROM meter_readings m WHERE m.room_id = r.id AND m.kind = 'water'
-               AND m.period < ?2 AND m.status = 'recorded' ORDER BY m.period DESC LIMIT 1) AS water_prev,
-            (SELECT m.value  FROM meter_readings m WHERE m.room_id = r.id AND m.kind = 'water'
-               AND m.period = ?2) AS water_now,
-            (SELECT m.status FROM meter_readings m WHERE m.room_id = r.id AND m.kind = 'water'
-               AND m.period = ?2) AS water_status,
-            (SELECT m.value  FROM meter_readings m WHERE m.room_id = r.id AND m.kind = 'electric'
-               AND m.period < ?2 AND m.status = 'recorded' ORDER BY m.period DESC LIMIT 1) AS elec_prev,
-            (SELECT m.value  FROM meter_readings m WHERE m.room_id = r.id AND m.kind = 'electric'
-               AND m.period = ?2) AS elec_now,
-            (SELECT m.status FROM meter_readings m WHERE m.room_id = r.id AND m.kind = 'electric'
-               AND m.period = ?2) AS elec_status,
-            COALESCE((SELECT AVG(m.value - m.prev_value) FROM meter_readings m
-               WHERE m.room_id = r.id AND m.kind = 'water' AND m.period < ?2
-                 AND m.status = 'recorded' AND m.value >= m.prev_value), 0) AS water_avg,
-            COALESCE((SELECT AVG(m.value - m.prev_value) FROM meter_readings m
-               WHERE m.room_id = r.id AND m.kind = 'electric' AND m.period < ?2
-                 AND m.status = 'recorded' AND m.value >= m.prev_value), 0) AS elec_avg
-       FROM rooms r
-       LEFT JOIN contracts ct ON ct.room_id = r.id AND ct.status = 'active'
-       LEFT JOIN tenants t ON t.id = ct.tenant_id
-      WHERE r.building_id = ?1
-      ORDER BY r.floor, r.number`,
-    buildingId, period,
-  );
+function walkRooms(c: Ctx, buildingId: string, period: string): Promise<WalkRoom[]> {
+  return c.get('repos').meterReadings.walkGrid(c.get('tctx'), buildingId, period);
 }
 
 type RoomState = 'done' | 'skipped' | 'todo';
@@ -64,8 +29,13 @@ function stateOf(r: WalkRoom): RoomState {
   return r.water_now !== null && r.elec_now !== null ? 'done' : 'todo';
 }
 
-const prevOf = (r: WalkRoom, kind: 'water' | 'electric') =>
-  kind === 'water'
+/**
+ * What the meter read last time. Falls back to the lease's opening value, so a
+ * resident's first bill charges what they used rather than everything the meter
+ * has counted since it was installed.
+ */
+const prevOf = (r: WalkRoom, kind: 'WATER' | 'ELECTRIC' | 'water' | 'electric') =>
+  kind === 'WATER' || kind === 'water'
     ? (r.water_prev ?? r.contract_water_start)
     : (r.elec_prev ?? r.contract_electric_start);
 
@@ -83,7 +53,7 @@ const walkBase = (b: string, p: string) => `/walk/${b}/${p}`;
 
 /** Next room still needing a reading, starting after `afterId`. */
 function nextTodo(rooms: WalkRoom[], afterId?: string): WalkRoom | null {
-  const start = afterId ? rooms.findIndex((r) => r.id === afterId) + 1 : 0;
+  const start = afterId ? rooms.findIndex((r) => r.room_id === afterId) + 1 : 0;
   for (let i = start; i < rooms.length; i++) if (stateOf(rooms[i]) === 'todo') return rooms[i];
   for (let i = 0; i < start; i++) if (stateOf(rooms[i]) === 'todo') return rooms[i];
   return null;
@@ -105,16 +75,16 @@ const ThemeTap: FC<{ t: T }> = ({ t }) => (
 /* ------------------------------------------------------------ start screen --- */
 
 app.get('/walk', async (c) => {
-  const db = c.get('db');
+  requirePermission(c.get('tctx'), 'app.meter.record');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const buildings = await c.get('repos').buildings.all(c.get('tctx'));
   if (buildings.length === 0) return back(c, '/buildings/new', 'no_building', true);
 
-  const buildingId = c.req.query('building') || buildings[0].id;
-  const building = buildings.find((b) => b.id === buildingId) ?? buildings[0];
+  const buildingId = c.req.query('building') || buildings[0].building_id;
+  const building = buildings.find((b) => b.building_id === buildingId) ?? buildings[0];
   const period = c.req.query('period') || currentPeriod();
 
-  const rooms = await walkRooms(c, building.id, period);
+  const rooms = await walkRooms(c, building.building_id, period);
   const st = tally(rooms);
   const resume = nextTodo(rooms);
 
@@ -126,7 +96,7 @@ app.get('/walk', async (c) => {
           <span class="ic" aria-hidden="true">{Icon.building({ size: 20 })}</span>
           <span class="tx">
             <select id="building" name="building" onchange="this.form.submit()" aria-label={t('building.name')}>
-              {buildings.map((b) => <option value={b.id} selected={b.id === building.id}>{b.name}</option>)}
+              {buildings.map((b) => <option value={b.building_id} selected={b.building_id === building.building_id}>{b.name}</option>)}
             </select>
             <span>{thaiPeriod(period)} · {st.total} {t('common.rooms')}</span>
           </span>
@@ -179,16 +149,16 @@ app.get('/walk', async (c) => {
 
       <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.625rem">
         {resume ? (
-          <a class="btn primary field-primary" href={`${walkBase(building.id, period)}/room/${resume.id}`}>
+          <a class="btn primary field-primary" href={`${walkBase(building.building_id, period)}/room/${resume.room_id}`}>
             <span aria-hidden="true">{Icon.arrowRight({ size: 18 })}</span>
             {st.done > 0 ? t('walk.continue') : t('walk.start')}
           </a>
         ) : (
-          <a class="btn primary field-primary" href={`${walkBase(building.id, period)}/done`}>
+          <a class="btn primary field-primary" href={`${walkBase(building.building_id, period)}/done`}>
             {t('walk.all_done_already')}
           </a>
         )}
-        <a class="btn field-secondary" href={`${walkBase(building.id, period)}/rooms`}>
+        <a class="btn field-secondary" href={`${walkBase(building.building_id, period)}/rooms`}>
           <span aria-hidden="true">{Icon.receipt({ size: 17 })}</span>{t('walk.room_list')}
         </a>
         <a class="btn field-secondary ghost" href={`/meters?building=${building.id}&period=${period}`}>
@@ -205,8 +175,7 @@ app.get('/walk/:building/:period/rooms', async (c) => {
   const t = c.get('t');
   const buildingId = c.req.param('building');
   const period = c.req.param('period');
-  const building = await c.get('db').building(buildingId);
-  if (!building) return c.notFound();
+  const building = await c.get('repos').buildings.byId(c.get('tctx'), buildingId);
   const rooms = await walkRooms(c, buildingId, period);
   const st = tally(rooms);
   const current = c.req.query('at');
@@ -230,7 +199,7 @@ app.get('/walk/:building/:period/rooms', async (c) => {
           {rooms.map((r) => {
             const s = stateOf(r);
             return (
-              <a href={`${walkBase(buildingId, period)}/room/${r.id}`} class={r.id === current ? 'now' : ''}>
+              <a href={`${walkBase(buildingId, period)}/room/${r.room_id}`} class={r.room_id === current ? 'now' : ''}>
                 <span class="rno">{r.number}</span>
                 <span class="rst">
                   <span class={`tag ${s === 'done' ? 'paid' : s === 'skipped' ? 'void' : 'unpaid'}`}>{label[s]}</span>
@@ -304,24 +273,23 @@ app.get('/walk/:building/:period/room/:room', async (c) => {
   const period = c.req.param('period');
   const roomId = c.req.param('room');
 
-  const building = await c.get('db').building(buildingId);
-  if (!building) return c.notFound();
+  const building = await c.get('repos').buildings.byId(c.get('tctx'), buildingId);
   const rooms = await walkRooms(c, buildingId, period);
-  const idx = rooms.findIndex((r) => r.id === roomId);
+  const idx = rooms.findIndex((r) => r.room_id === roomId);
   if (idx < 0) return c.notFound();
   const room = rooms[idx];
   const st = tally(rooms);
   const base = walkBase(buildingId, period);
 
-  const after = nextTodo(rooms, room.id);
-  const nextHref = after ? `${base}/room/${after.id}` : `${base}/done`;
+  const after = nextTodo(rooms, room.room_id);
+  const nextHref = after ? `${base}/room/${after.room_id}` : `${base}/done`;
   const isLast = !after;
   const unit = t('walk.unit');
 
   return c.html(
     <FieldShell
       t={t} title={`${t('room.number')} ${room.number}`} locale={c.get('locale')}
-      back={`${base}/rooms?at=${room.id}`}
+      back={`${base}/rooms?at=${room.room_id}`}
       action={<ThemeTap t={t} />}
       foot={
         <>
@@ -329,7 +297,7 @@ app.get('/walk/:building/:period/room/:room', async (c) => {
             {isLast ? t('walk.save_finish') : t('walk.save_next')}
             <span aria-hidden="true">{Icon.arrowRight({ size: 17 })}</span>
           </button>
-          <a class="btn field-secondary" href={`${base}/skip/${room.id}`}>{t('walk.skip')}</a>
+          <a class="btn field-secondary" href={`${base}/skip/${room.room_id}`}>{t('walk.skip')}</a>
           <div class="foot-prog">
             <span>{t('walk.progress', { i: idx + 1, n: st.total })}</span>
             <div class="bar"><i style={`width:${Math.round(((idx + 1) / st.total) * 100)}%`} /></div>
@@ -341,17 +309,17 @@ app.get('/walk/:building/:period/room/:room', async (c) => {
       <section class="fcard tight ftenant">
         <span class="av" aria-hidden="true">{Icon.users({ size: 18 })}</span>
         <span class="tx">
-          {room.tenant_name
-            ? <><b>{room.tenant_name}</b><span>{t('contract.start')} {thaiDate(room.moved_in)}</span></>
+          {room.party_name
+            ? <><b>{room.party_name}</b><span>{t('contract.start')} {thaiDate(room.moved_in)}</span></>
             : <><b class="muted">{t('room.vacant')}</b><span>{t('walk.skip_vacant')}</span></>}
         </span>
-        {room.tenant_name ? <span class="tag occupied">{t('room.occupied')}</span> : null}
+        {room.party_name ? <span class="tag occupied">{t('room.occupied')}</span> : null}
       </section>
 
       <form
-        id="walk-form" method="post" action={`${base}/room/${room.id}`} enctype="multipart/form-data"
-        data-room={room.id} data-period={period} data-next={nextHref}
-        data-require-values={room.tenant_name ? '1' : '0'}
+        id="walk-form" method="post" action={`${base}/room/${room.room_id}`} enctype="multipart/form-data"
+        data-room={room.room_id} data-period={period} data-next={nextHref}
+        data-require-values={room.party_name ? '1' : '0'}
       >
         <input type="hidden" name="next" value={nextHref} />
 
@@ -383,35 +351,29 @@ app.get('/walk/:building/:period/room/:room', async (c) => {
 
 /* ------------------------------------------------------------------ save --- */
 
-async function upsertReading(
-  c: Ctx, roomId: string, period: string, kind: 'water' | 'electric',
-  prev: number, value: number, opts: { status?: string; reason?: string | null; note?: string | null; photo?: string | null },
+function upsertReading(
+  c: Ctx, roomId: string, period: string, kind: 'WATER' | 'ELECTRIC',
+  prev: number, value: number,
+  opts: { status?: 'RECORDED' | 'SKIPPED'; reason?: string | null; note?: string | null; photo?: string | null } = {},
 ) {
-  const db = c.get('db');
-  return db.prep(
-    `INSERT INTO meter_readings
-       (id, room_id, period, kind, prev_value, value, status, skip_reason, note, photo_key, recorded_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)
-     ON CONFLICT(room_id, period, kind) DO UPDATE SET
-       prev_value = excluded.prev_value, value = excluded.value,
-       status = excluded.status, skip_reason = excluded.skip_reason,
-       note = excluded.note,
-       photo_key = COALESCE(excluded.photo_key, meter_readings.photo_key),
-       recorded_by = excluded.recorded_by, recorded_at = datetime('now')`,
-    id('m_'), roomId, period, kind, prev, value,
-    opts.status ?? 'recorded', opts.reason ?? null, opts.note ?? null, opts.photo ?? null,
-    c.get('user').id,
-  );
+  return c.get('repos').meterReadings.record(c.get('tctx'), {
+    roomId, period, kind, prev, value,
+    status: opts.status, reason: opts.reason, note: opts.note, photoKey: opts.photo,
+  });
 }
 
 app.post('/walk/:building/:period/room/:room', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.meter.record');
+  const repos = c.get('repos');
   const buildingId = c.req.param('building');
   const period = c.req.param('period');
   const roomId = c.req.param('room');
 
+  // The walk grid is already tenant-scoped, so a room id that is not in it is
+  // either another operator's or does not exist — both answer the same.
   const rooms = await walkRooms(c, buildingId, period);
-  const room = rooms.find((r) => r.id === roomId);
+  const room = rooms.find((r) => r.room_id === roomId);
   if (!room) return c.notFound();
 
   const f = await c.req.formData();
@@ -420,29 +382,23 @@ app.post('/walk/:building/:period/room/:room', async (c) => {
   let photoKey: string | null = null;
   const photo = f.get('photo');
   if (photo instanceof File && photo.size > 0) {
-    photoKey = `meters/${period}/${roomId}/${id('')}`;
+    photoKey = `t/${tctx.tenantId}/meters/${period}/${roomId}/${ulid()}`;
     await c.env.FILES.put(photoKey, await photo.arrayBuffer(), {
       httpMetadata: { contentType: photo.type || 'application/octet-stream' },
     });
   }
 
   const stmts: D1PreparedStatement[] = [];
-  for (const kind of ['water', 'electric'] as const) {
-    const raw = str(f.get(kind));
-    if (raw === '') continue;                       // a blank meter is left untouched
-    stmts.push(await upsertReading(
-      c, roomId, period, kind, prevOf(room, kind), Math.round(num(f.get(kind))),
+  for (const kind of ['WATER', 'ELECTRIC'] as const) {
+    if (str(f.get(kind.toLowerCase())) === '') continue;   // blank = not read, left untouched
+    stmts.push(upsertReading(
+      c, roomId, period, kind, prevOf(room, kind), Math.round(num(f.get(kind.toLowerCase()))),
       { note, photo: photoKey },
     ));
   }
-  if (stmts.length) await db.batch(stmts);
+  if (stmts.length) await c.env.DB.batch(stmts);
 
-  // Keep one walk row per building+period so the office view can see activity.
-  await db.run(
-    `INSERT INTO meter_walks (id, building_id, period, started_by) VALUES (?,?,?,?)
-     ON CONFLICT(building_id, period) DO NOTHING`,
-    id('w_'), buildingId, period, c.get('user').id,
-  );
+  await repos.meterWalks.start(tctx, buildingId, period);
 
   // Fetch requests from the offline queue just need an ack, not a redirect.
   if (c.req.header('x-walk-sync')) return c.text('ok');
@@ -457,10 +413,10 @@ app.get('/walk/:building/:period/skip/:room', async (c) => {
   const period = c.req.param('period');
   const roomId = c.req.param('room');
   const rooms = await walkRooms(c, buildingId, period);
-  const room = rooms.find((r) => r.id === roomId);
+  const room = rooms.find((r) => r.room_id === roomId);
   if (!room) return c.notFound();
   const base = walkBase(buildingId, period);
-  const after = nextTodo(rooms, room.id);
+  const after = nextTodo(rooms, room.room_id);
 
   const reasons = [
     ['vacant', t('walk.skip_vacant')],
@@ -470,13 +426,13 @@ app.get('/walk/:building/:period/skip/:room', async (c) => {
   ] as const;
 
   return c.html(
-    <FieldShell t={t} title={t('walk.skip_title')} locale={c.get('locale')} back={`${base}/room/${room.id}`}>
+    <FieldShell t={t} title={t('walk.skip_title')} locale={c.get('locale')} back={`${base}/room/${room.room_id}`}>
       <p class="muted" style="margin-bottom:.25rem">
         {t('room.number')} <b style="color:var(--text)">{room.number}</b>
-        {room.tenant_name ? ` · ${room.tenant_name}` : ''}
+        {room.party_name ? ` · ${room.party_name}` : ''}
       </p>
-      <form method="post" action={`${base}/skip/${room.id}`}>
-        <input type="hidden" name="next" value={after ? `${base}/room/${after.id}` : `${base}/done`} />
+      <form method="post" action={`${base}/skip/${room.room_id}`}>
+        <input type="hidden" name="next" value={after ? `${base}/room/${after.room_id}` : `${base}/done`} />
         <div class="reasons">
           {reasons.map(([v, label], i) => (
             <label>
@@ -490,7 +446,7 @@ app.get('/walk/:building/:period/skip/:room', async (c) => {
           <input id="note" name="note" placeholder={t('walk.note_placeholder')} />
         </div>
         <button class="btn primary field-primary block" type="submit">{t('walk.skip_confirm')}</button>
-        <a class="btn field-secondary block" href={`${base}/room/${room.id}`} style="margin-top:.5rem">
+        <a class="btn field-secondary block" href={`${base}/room/${room.room_id}`} style="margin-top:.5rem">
           {t('common.cancel')}
         </a>
       </form>
@@ -499,12 +455,13 @@ app.get('/walk/:building/:period/skip/:room', async (c) => {
 });
 
 app.post('/walk/:building/:period/skip/:room', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.meter.record');
   const buildingId = c.req.param('building');
   const period = c.req.param('period');
   const roomId = c.req.param('room');
   const rooms = await walkRooms(c, buildingId, period);
-  const room = rooms.find((r) => r.id === roomId);
+  const room = rooms.find((r) => r.room_id === roomId);
   if (!room) return c.notFound();
 
   const f = await c.req.formData();
@@ -512,12 +469,12 @@ app.post('/walk/:building/:period/skip/:room', async (c) => {
   const note = str(f.get('note')) || null;
 
   // A skipped meter records the previous value as the current one, so usage is
-  // zero and the billing engine bills rent without inventing consumption.
-  const stmts = await Promise.all((['water', 'electric'] as const).map((kind) =>
+  // zero and the billing run charges rent without inventing consumption. The
+  // SKIPPED status is what keeps it out of the next period's baseline.
+  await c.env.DB.batch((['WATER', 'ELECTRIC'] as const).map((kind) =>
     upsertReading(c, roomId, period, kind, prevOf(room, kind), prevOf(room, kind),
-      { status: 'skipped', reason, note }),
+      { status: 'SKIPPED', reason, note }),
   ));
-  await db.batch(stmts);
 
   if (c.req.header('x-walk-sync')) return c.text('ok');
   return c.redirect(str(f.get('next')) || walkBase(buildingId, period), 303);
@@ -529,8 +486,7 @@ app.get('/walk/:building/:period/done', async (c) => {
   const t = c.get('t');
   const buildingId = c.req.param('building');
   const period = c.req.param('period');
-  const building = await c.get('db').building(buildingId);
-  if (!building) return c.notFound();
+  const building = await c.get('repos').buildings.byId(c.get('tctx'), buildingId);
   const rooms = await walkRooms(c, buildingId, period);
   const st = tally(rooms);
   const base = walkBase(buildingId, period);
@@ -549,10 +505,7 @@ app.get('/walk/:building/:period/done', async (c) => {
     return out;
   });
 
-  await c.get('db').run(
-    "UPDATE meter_walks SET finished_at = datetime('now') WHERE building_id = ? AND period = ?",
-    buildingId, period,
-  );
+  await c.get('repos').meterWalks.finish(c.get('tctx'), buildingId, period);
 
   return c.html(
     <FieldShell t={t} title={t('walk.title')} locale={c.get('locale')} back="/walk" tabs>

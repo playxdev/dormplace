@@ -1,68 +1,33 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Icon, Layout, PageHead } from '../ui/layout';
-import { currentPeriod, id, num, shiftPeriod, str, thaiPeriod } from '../lib/util';
-import type { Db } from '../lib/db';
+import { currentPeriod, num, shiftPeriod, str, thaiPeriod } from '../lib/util';
 
 const app = route();
 
-interface MeterRow {
-  room_id: string; number: string; floor: number; tenant_name: string | null;
-  water_prev: number | null; water_now: number | null;
-  elec_prev: number | null; elec_now: number | null;
-  water_start: number; electric_start: number;
-}
-
-/**
- * Rows for the entry grid. The previous reading is the last recorded value from
- * any earlier period; when none exists we fall back to the contract's opening
- * reading so the first bill charges only what the tenant actually used.
- */
-async function meterRows(db: Db, buildingId: string, period: string): Promise<MeterRow[]> {
-  return db.all<MeterRow>(
-    `SELECT r.id AS room_id, r.number, r.floor, t.name AS tenant_name,
-            COALESCE(ct.water_start, 0)    AS water_start,
-            COALESCE(ct.electric_start, 0) AS electric_start,
-            (SELECT m.value FROM meter_readings m
-              WHERE m.room_id = r.id AND m.kind = 'water' AND m.period < ?2
-              ORDER BY m.period DESC LIMIT 1) AS water_prev,
-            (SELECT m.value FROM meter_readings m
-              WHERE m.room_id = r.id AND m.kind = 'water' AND m.period = ?2) AS water_now,
-            (SELECT m.value FROM meter_readings m
-              WHERE m.room_id = r.id AND m.kind = 'electric' AND m.period < ?2
-              ORDER BY m.period DESC LIMIT 1) AS elec_prev,
-            (SELECT m.value FROM meter_readings m
-              WHERE m.room_id = r.id AND m.kind = 'electric' AND m.period = ?2) AS elec_now
-       FROM rooms r
-       LEFT JOIN contracts ct ON ct.room_id = r.id AND ct.status = 'active'
-       LEFT JOIN tenants t ON t.id = ct.tenant_id
-      WHERE r.building_id = ?1
-      ORDER BY r.floor, r.number`,
-    buildingId, period,
-  );
-}
-
 app.get('/meters', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.meter.read');
+  const repos = c.get('repos');
+  const buildings = await repos.buildings.all(tctx);
   if (buildings.length === 0) return back(c, '/buildings/new', 'no_building', true);
-  const buildingId = c.req.query('building') || buildings[0].id;
-  const building = buildings.find((b) => b.id === buildingId) ?? buildings[0];
+  const buildingId = c.req.query('building') || buildings[0].building_id;
+  const building = buildings.find((b) => b.building_id === buildingId) ?? buildings[0];
   const period = c.req.query('period') || currentPeriod();
-  const rows = await meterRows(db, building.id, period);
+  const rows = await repos.meterReadings.gridFor(tctx, building.building_id, period);
 
   const onlyOccupied = c.req.query('all') !== '1';
-  const shown = onlyOccupied ? rows.filter((r) => r.tenant_name) : rows;
+  const shown = onlyOccupied ? rows.filter((r) => r.party_name) : rows;
 
   return c.html(
     <Layout {...page(c, t('meter.title'))}>
       <PageHead title={t('walk.office')} sub={`${building.name} · ${thaiPeriod(period)}`}>
-        <a class="btn primary" href={`/walk?building=${building.id}&period=${period}`}>
+        <a class="btn primary" href={`/walk?building=${building.building_id}&period=${period}`}>
           <span aria-hidden="true">{Icon.gauge({ size: 16 })}</span>{t('walk.title')}
         </a>
         <form method="get" action="/meters" class="btn-row">
           <select name="building">
-            {buildings.map((b) => <option value={b.id} selected={b.id === building.id}>{b.name}</option>)}
+            {buildings.map((b) => <option value={b.building_id} selected={b.building_id === building.building_id}>{b.name}</option>)}
           </select>
           <input type="month" name="period" value={period} />
           <label class="small" style="display:flex;align-items:center;gap:.3rem;margin:0">
@@ -70,7 +35,7 @@ app.get('/meters', async (c) => {
           </label>
           <button class="btn" type="submit">{t('common.view')}</button>
         </form>
-        <a class="btn" href={`/meters?building=${building.id}&period=${shiftPeriod(period, -1)}`}>←</a>
+        <a class="btn" href={`/meters?building=${building.building_id}&period=${shiftPeriod(period, -1)}`}>←</a>
         <a class="btn" href={`/billing?building=${building.id}&period=${period}`}>{t('nav.billing')}</a>
       </PageHead>
 
@@ -78,7 +43,7 @@ app.get('/meters', async (c) => {
         <div class="card"><Empty text={t('common.none')} /></div>
       ) : (
         <form method="post" action="/meters" class="card">
-          <input type="hidden" name="building_id" value={building.id} />
+          <input type="hidden" name="building_id" value={building.building_id} />
           <input type="hidden" name="period" value={period} />
           <div class="table-wrap">
             <table>
@@ -99,7 +64,7 @@ app.get('/meters', async (c) => {
                   return (
                     <tr>
                       <td><strong>{r.number}</strong></td>
-                      <td class="small">{r.tenant_name ?? <span class="muted">{t('room.vacant')}</span>}</td>
+                      <td class="small">{r.party_name ?? <span class="muted">{t('room.vacant')}</span>}</td>
                       <td class="num">
                         <input name={`wp_${r.room_id}`} type="number" min="0" value={String(wPrev)} style="max-width:110px" />
                       </td>
@@ -131,30 +96,32 @@ app.get('/meters', async (c) => {
 });
 
 app.post('/meters', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.meter.record');
   const f = await c.req.formData();
   const buildingId = str(f.get('building_id'));
   const period = str(f.get('period'));
   if (!buildingId || !period) return back(c, '/meters', 'missing', true);
 
-  const stmts: D1PreparedStatement[] = [];
+  // The form posts one field per room per meter. Room ids arrive in the field
+  // names, so they are checked against this building before anything is
+  // written — the alternative is trusting a name a request chose.
+  const known = new Set((await c.get('repos').rooms.forBuilding(tctx, buildingId)).map((r) => r.room_id));
+
+  const entries: { roomId: string; kind: 'WATER' | 'ELECTRIC'; prev: number; value: number }[] = [];
   for (const [key, raw] of f.entries()) {
     const m = /^(w|e)_(.+)$/.exec(key);
     if (!m) continue;
-    const value = String(raw).trim();
-    if (value === '') continue;
-    const kind = m[1] === 'w' ? 'water' : 'electric';
-    const roomId = m[2];
-    const prev = Math.round(num(f.get(`${m[1]}p_${roomId}`)));
-    stmts.push(db.prep(
-      `INSERT INTO meter_readings (id, room_id, period, kind, prev_value, value)
-       VALUES (?,?,?,?,?,?)
-       ON CONFLICT(room_id, period, kind)
-       DO UPDATE SET prev_value = excluded.prev_value, value = excluded.value, recorded_at = datetime('now')`,
-      id('m_'), roomId, period, kind, prev, Math.round(num(raw)),
-    ));
+    if (String(raw).trim() === '') continue;   // blank means not walked, not zero
+    if (!known.has(m[2])) continue;
+    entries.push({
+      roomId: m[2],
+      kind: m[1] === 'w' ? 'WATER' : 'ELECTRIC',
+      prev: Math.round(num(f.get(`${m[1]}p_${m[2]}`))),
+      value: Math.round(num(raw)),
+    });
   }
-  if (stmts.length) await db.batch(stmts);
+  await c.get('repos').meterReadings.saveMany(tctx, period, entries);
   return back(c, `/meters?building=${buildingId}&period=${period}`, 'meters_saved');
 });
 

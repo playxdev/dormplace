@@ -1,43 +1,36 @@
-import { back, page, route } from '../app';
-import { Empty, Icon, Kpi, Layout, PageHead, RailStat, Tag } from '../ui/layout';
-import { baht, fromSatang, id, num, str, toSatang } from '../lib/util';
-import type { Room } from '../types';
+import { back, page, requirePermission, route } from '../app';
+import { Empty, Icon, Layout, PageHead, RailStat, Tag } from '../ui/layout';
+import { baht, fromSatang, num, statusKey, str, toSatang } from '../lib/util';
 
 const app = route();
 
-type RoomRow = Room & { tenant_name: string | null; contract_id: string | null; due: number; tickets: number };
+/** Statuses in the order the filter bar shows them, database spelling. */
+const STATUSES = ['OCCUPIED', 'VACANT', 'MAINTENANCE'] as const;
 
 app.get('/rooms', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.read');
+  const repos = c.get('repos');
+  const buildings = await repos.buildings.all(tctx);
   if (buildings.length === 0) return back(c, '/buildings/new', 'no_building', true);
-  const buildingId = c.req.query('building') || buildings[0].id;
-  const building = buildings.find((b) => b.id === buildingId) ?? buildings[0];
-  const filter = c.req.query('status') ?? '';
+  const buildingId = c.req.query('building') || buildings[0].building_id;
+  const building = buildings.find((b) => b.building_id === buildingId) ?? buildings[0];
+  // The query parameter is a filter over rows already scoped to this tenant,
+  // never a scope of its own — grid() takes the tenant from tctx.
+  const filter = (c.req.query('status') ?? '').toUpperCase();
 
-  const rows = await db.all<RoomRow>(
-    `SELECT r.*, t.name AS tenant_name, ct.id AS contract_id,
-            COALESCE((SELECT SUM(i.total - i.paid_total) FROM invoices i
-                       WHERE i.room_id = r.id AND i.status IN ('unpaid','partial')), 0) AS due,
-            (SELECT COUNT(*) FROM tickets k
-              WHERE k.room_id = r.id AND k.status IN ('open','in_progress')) AS tickets
-       FROM rooms r
-       LEFT JOIN contracts ct ON ct.room_id = r.id AND ct.status = 'active'
-       LEFT JOIN tenants t ON t.id = ct.tenant_id
-      WHERE r.building_id = ?
-      ORDER BY r.floor, r.number`,
-    building.id,
-  );
+  const rows = await repos.rooms.grid(tctx, building.building_id);
 
   const shown = filter ? rows.filter((r) => r.status === filter) : rows;
   const floors = [...new Set(shown.map((r) => r.floor))].sort((a, b) => a - b);
   const count = (st: string) => rows.filter((r) => r.status === st).length;
-  const occupied = count('occupied');
+  const occupied = count('OCCUPIED');
   const rate = rows.length ? Math.round((occupied / rows.length) * 100) : 0;
   const totalDue = rows.reduce((s, r) => s + r.due, 0);
   const potential = rows.reduce((s, r) => s + r.rent, 0);
   const actual = rows.filter((r) => r.contract_id).reduce((s, r) => s + r.rent, 0);
+  const href = (extra = '') => `/rooms?building=${building.building_id}${extra}`;
 
   const rail = (
     <>
@@ -50,12 +43,12 @@ app.get('/rooms', async (c) => {
       <div>
         <h2>{t('room.status')}</h2>
         <div class="att">
-          {(['occupied', 'vacant', 'maintenance'] as const).map((st) => (
-            <a class="att-row" href={`/rooms?building=${building.id}&status=${st}`}>
-              <span class={`dot ${st === 'occupied' ? 'ok' : st === 'vacant' ? 'warn' : 'bad'}`} aria-hidden="true">
+          {STATUSES.map((st) => (
+            <a class="att-row" href={href(`&status=${statusKey(st)}`)}>
+              <span class={`dot ${st === 'OCCUPIED' ? 'ok' : st === 'VACANT' ? 'warn' : 'bad'}`} aria-hidden="true">
                 {Icon.door({ size: 14 })}
               </span>
-              <span class="txt"><b>{t(`room.${st}` as 'room.vacant')}</b><span>{t('common.rooms')}</span></span>
+              <span class="txt"><b>{t(`room.${statusKey(st)}` as 'room.vacant')}</b><span>{t('common.rooms')}</span></span>
               <span class="amt">{count(st)}</span>
             </a>
           ))}
@@ -73,17 +66,19 @@ app.get('/rooms', async (c) => {
 
   return c.html(
     <Layout {...page(c, t('room.title'))} rail={rail}
-      context={{ name: building.name, sub: `${rows.length} ${t('common.rooms')}`, href: `/buildings/${building.id}` }}>
+      context={{ name: building.name, sub: `${rows.length} ${t('common.rooms')}`, href: `/buildings/${building.building_id}` }}>
       <PageHead title={t('room.title')} sub={`${building.name} · ${occupied}/${rows.length} ${t('room.occupied')}`}>
         {buildings.length > 1 ? (
           <form method="get" action="/rooms">
             <select name="building" onchange="this.form.submit()" aria-label={t('building.name')}>
-              {buildings.map((b) => <option value={b.id} selected={b.id === building.id}>{b.name}</option>)}
+              {buildings.map((b) => (
+                <option value={b.building_id} selected={b.building_id === building.building_id}>{b.name}</option>
+              ))}
             </select>
           </form>
         ) : null}
-        <a class="btn" href={`/rooms/bulk?building=${building.id}`}>{t('room.bulk')}</a>
-        <a class="btn primary" href={`/rooms/new?building=${building.id}`}>
+        <a class="btn" href={`/rooms/bulk?building=${building.building_id}`}>{t('room.bulk')}</a>
+        <a class="btn primary" href={`/rooms/new?building=${building.building_id}`}>
           <span aria-hidden="true">{Icon.plus({ size: 16 })}</span>{t('room.new')}
         </a>
       </PageHead>
@@ -91,12 +86,12 @@ app.get('/rooms', async (c) => {
       <div class="card" style="margin-bottom:1rem">
         <div class="btn-row" style="justify-content:space-between">
           <div class="btn-row">
-            <a class={`btn sm${filter === '' ? ' primary' : ''}`} href={`/rooms?building=${building.id}`}>
+            <a class={`btn sm${filter === '' ? ' primary' : ''}`} href={href()}>
               {t('common.all')} {rows.length}
             </a>
-            {(['occupied', 'vacant', 'maintenance'] as const).map((st) => (
-              <a class={`btn sm${filter === st ? ' primary' : ''}`} href={`/rooms?building=${building.id}&status=${st}`}>
-                {t(`room.${st}` as 'room.vacant')} {count(st)}
+            {STATUSES.map((st) => (
+              <a class={`btn sm${filter === st ? ' primary' : ''}`} href={href(`&status=${statusKey(st)}`)}>
+                {t(`room.${statusKey(st)}` as 'room.vacant')} {count(st)}
               </a>
             ))}
           </div>
@@ -111,7 +106,7 @@ app.get('/rooms', async (c) => {
       {shown.length === 0 ? (
         <div class="card">
           <Empty text={t('common.none')} icon="door"
-            action={<a class="btn primary" href={`/rooms/new?building=${building.id}`}>{t('room.new')}</a>} />
+            action={<a class="btn primary" href={`/rooms/new?building=${building.building_id}`}>{t('room.new')}</a>} />
         </div>
       ) : (
         floors.map((f) => (
@@ -123,17 +118,17 @@ app.get('/rooms', async (c) => {
             </div>
             <div class="rooms">
               {shown.filter((r) => r.floor === f).map((r) => (
-                <a class={`room ${r.status}`} href={`/rooms/${r.id}`}>
+                <a class={`room ${statusKey(r.status)}`} href={`/rooms/${r.room_id}`}>
                   <div class="rt">
                     <span class="no">{r.number}</span>
-                    {r.tickets > 0 ? <span class="flag" title={t('nav.tickets')} aria-label={t('nav.tickets')}>🔧</span> : null}
+                    {r.open_tickets > 0 ? <span class="flag" title={t('nav.tickets')} aria-label={t('nav.tickets')}>🔧</span> : null}
                   </div>
-                  <div class="who">{r.tenant_name ?? t(`room.${r.status}` as 'room.vacant')}</div>
+                  <div class="who">{r.party_name ?? t(`room.${statusKey(r.status)}` as 'room.vacant')}</div>
                   <div class="rb">
                     <span class="rent">฿{baht(r.rent)}</span>
                     {r.due > 0
                       ? <span class="due">฿{baht(r.due)}</span>
-                      : <Tag kind={r.status} label={t(`room.${r.status}` as 'room.vacant')} plain />}
+                      : <Tag kind={statusKey(r.status)} label={t(`room.${statusKey(r.status)}` as 'room.vacant')} plain />}
                   </div>
                 </a>
               ))}
@@ -146,11 +141,12 @@ app.get('/rooms', async (c) => {
 });
 
 app.get('/rooms/new', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.manage');
+  const buildings = await c.get('repos').buildings.all(tctx);
   if (buildings.length === 0) return back(c, '/buildings/new', 'no_building', true);
-  const buildingId = c.req.query('building') || buildings[0].id;
+  const buildingId = c.req.query('building') || buildings[0].building_id;
   return c.html(
     <Layout {...page(c, t('room.new'))}>
       <PageHead title={t('room.new')}>
@@ -160,7 +156,9 @@ app.get('/rooms/new', async (c) => {
         <div class="field">
           <label for="building_id">{t('building.name')}</label>
           <select id="building_id" name="building_id" required>
-            {buildings.map((b) => <option value={b.id} selected={b.id === buildingId}>{b.name}</option>)}
+            {buildings.map((b) => (
+              <option value={b.building_id} selected={b.building_id === buildingId}>{b.name}</option>
+            ))}
           </select>
         </div>
         <div class="row">
@@ -197,17 +195,26 @@ app.get('/rooms/new', async (c) => {
 });
 
 app.post('/rooms', async (c) => {
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.manage');
   const f = await c.req.formData();
   const buildingId = str(f.get('building_id'));
   const number = str(f.get('number'));
   if (!buildingId || !number) return back(c, '/rooms/new', 'missing', true);
+  // The building id is checked against this tenant before it is used as a
+  // foreign key; a posted id from elsewhere throws NotFound here.
+  await c.get('repos').buildings.byId(tctx, buildingId);
   try {
-    await c.get('db').run(
-      'INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES (?,?,?,?,?,?,?)',
-      id('r_'), buildingId, Math.max(1, Math.round(num(f.get('floor'), 1))), number,
-      str(f.get('room_type')) || null, toSatang(num(f.get('rent'))), toSatang(num(f.get('deposit'))),
-    );
+    await c.get('repos').rooms.insert(tctx, {
+      building_id: buildingId,
+      floor: Math.max(1, Math.round(num(f.get('floor'), 1))),
+      number,
+      room_type: str(f.get('room_type')) || null,
+      rent: toSatang(num(f.get('rent'))),
+      deposit: toSatang(num(f.get('deposit'))),
+    });
   } catch {
+    // The partial unique index on (tenant_id, building_id, number).
     return back(c, `/rooms/new?building=${buildingId}`, 'duplicate', true);
   }
   return back(c, `/rooms?building=${buildingId}`, 'saved');
@@ -215,11 +222,12 @@ app.post('/rooms', async (c) => {
 
 /** Bulk create: floors x rooms-per-floor, numbered <floor><nn>. */
 app.get('/rooms/bulk', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.manage');
+  const buildings = await c.get('repos').buildings.all(tctx);
   if (buildings.length === 0) return back(c, '/buildings/new', 'no_building', true);
-  const buildingId = c.req.query('building') || buildings[0].id;
+  const buildingId = c.req.query('building') || buildings[0].building_id;
   return c.html(
     <Layout {...page(c, t('room.bulk'))}>
       <PageHead title={t('room.bulk')} sub="เช่น ชั้น 1–4 ชั้นละ 10 ห้อง จะได้ 101–110, 201–210 …">
@@ -229,7 +237,9 @@ app.get('/rooms/bulk', async (c) => {
         <div class="field">
           <label for="building_id">{t('building.name')}</label>
           <select id="building_id" name="building_id" required>
-            {buildings.map((b) => <option value={b.id} selected={b.id === buildingId}>{b.name}</option>)}
+            {buildings.map((b) => (
+              <option value={b.building_id} selected={b.building_id === buildingId}>{b.name}</option>
+            ))}
           </select>
         </div>
         <div class="row">
@@ -267,62 +277,56 @@ app.get('/rooms/bulk', async (c) => {
 });
 
 app.post('/rooms/bulk', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.manage');
   const f = await c.req.formData();
   const buildingId = str(f.get('building_id'));
-  const from = Math.max(1, Math.round(num(f.get('from_floor'), 1)));
-  const to = Math.max(from, Math.round(num(f.get('to_floor'), from)));
-  const per = Math.min(99, Math.max(1, Math.round(num(f.get('per_floor'), 10))));
-  const rent = toSatang(num(f.get('rent')));
-  const deposit = toSatang(num(f.get('deposit')));
-  const roomType = str(f.get('room_type')) || null;
   if (!buildingId) return back(c, '/rooms/bulk', 'missing', true);
+  await c.get('repos').buildings.byId(tctx, buildingId);
 
-  const existing = new Set((await db.rooms(buildingId)).map((r) => r.number));
-  const stmts: D1PreparedStatement[] = [];
-  for (let fl = from; fl <= to; fl++) {
-    for (let n = 1; n <= per; n++) {
-      const number = `${fl}${String(n).padStart(2, '0')}`;
-      if (existing.has(number)) continue;
-      stmts.push(db.prep(
-        'INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES (?,?,?,?,?,?,?)',
-        id('r_'), buildingId, fl, number, roomType, rent, deposit,
-      ));
-    }
-  }
-  if (stmts.length) await db.batch(stmts);
+  const from = Math.max(1, Math.round(num(f.get('from_floor'), 1)));
+  await c.get('repos').rooms.bulkCreate(tctx, {
+    buildingId,
+    fromFloor: from,
+    toFloor: Math.max(from, Math.round(num(f.get('to_floor'), from))),
+    perFloor: Math.min(99, Math.max(1, Math.round(num(f.get('per_floor'), 10)))),
+    rent: toSatang(num(f.get('rent'))),
+    deposit: toSatang(num(f.get('deposit'))),
+    roomType: str(f.get('room_type')) || null,
+  });
   return back(c, `/rooms?building=${buildingId}`, 'saved');
 });
 
 app.get('/rooms/:id', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const room = await db.room(c.req.param('id'));
-  if (!room) return c.notFound();
-  const [building, contract, invoices, tickets] = await Promise.all([
-    db.building(room.building_id),
-    db.activeContractForRoom(room.id),
-    db.all<{ id: string; number: string; period: string; total: number; paid_total: number; status: string }>(
-      'SELECT id, number, period, total, paid_total, status FROM invoices WHERE room_id = ? ORDER BY period DESC LIMIT 12',
-      room.id,
-    ),
-    db.all<{ id: string; title: string; status: string; created_at: string }>(
-      'SELECT id, title, status, created_at FROM tickets WHERE room_id = ? ORDER BY created_at DESC LIMIT 6', room.id,
-    ),
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.read');
+  const repos = c.get('repos');
+  const room = await repos.rooms.byId(tctx, c.req.param('id'));
+  const [building, live, invoices, tickets] = await Promise.all([
+    repos.buildings.byId(tctx, room.building_id),
+    repos.contracts.activeForRoom(tctx, room.room_id),
+    repos.invoices.rows(tctx, { roomId: room.room_id, limit: 12 }),
+    repos.tickets.all(tctx, {
+      where: [['room_id', '=', room.room_id]],
+      orderBy: [['created_at', 'DESC']],
+      limit: 6,
+    }),
   ]);
-  const tenant = contract ? await db.tenant(contract.tenant_id) : null;
+  const contract = live[0] ?? null;
+  const resident = contract ? await repos.parties.byId(tctx, contract.party_id) : null;
 
   return c.html(
     <Layout {...page(c, `${t('room.number')} ${room.number}`)}>
       <PageHead title={`${t('room.number')} ${room.number}`} sub={building?.name}>
         <a class="btn" href={`/rooms?building=${room.building_id}`}>{t('common.back')}</a>
         {contract
-          ? <a class="btn" href={`/contracts/${contract.id}`}>{t('contract.title')}</a>
-          : <a class="btn primary" href={`/contracts/new?room=${room.id}`}>{t('contract.new')}</a>}
+          ? <a class="btn" href={`/contracts/${contract.contract_id}`}>{t('contract.title')}</a>
+          : <a class="btn primary" href={`/contracts/new?room=${room.room_id}`}>{t('contract.new')}</a>}
       </PageHead>
 
       <div class="grid c2">
-        <form method="post" action={`/rooms/${room.id}`} class="card">
+        <form method="post" action={`/rooms/${room.room_id}`} class="card">
           <h2>{t('room.title')}</h2>
           <div class="row">
             <div class="field">
@@ -351,9 +355,11 @@ app.get('/rooms/:id', async (c) => {
           <div class="field">
             <label for="status">{t('room.status')}</label>
             <select id="status" name="status" disabled={!!contract}>
-              <option value="vacant" selected={room.status === 'vacant'}>{t('room.vacant')}</option>
-              <option value="occupied" selected={room.status === 'occupied'}>{t('room.occupied')}</option>
-              <option value="maintenance" selected={room.status === 'maintenance'}>{t('room.maintenance')}</option>
+              {STATUSES.map((st) => (
+                <option value={st} selected={room.status === st}>
+                  {t(`room.${statusKey(st)}` as 'room.vacant')}
+                </option>
+              ))}
             </select>
             {contract ? <div class="small muted">สถานะถูกกำหนดโดยสัญญาเช่าที่ยังใช้งานอยู่</div> : null}
           </div>
@@ -363,11 +369,11 @@ app.get('/rooms/:id', async (c) => {
         <div>
           <div class="card">
             <h2>{t('contract.title')}</h2>
-            {contract && tenant ? (
+            {contract && resident ? (
               <>
                 <p>
-                  <strong><a href={`/tenants/${tenant.id}`}>{tenant.name}</a></strong>
-                  <div class="small muted">{tenant.phone ?? ''}</div>
+                  <strong><a href={`/residents/${resident.party_id}`}>{resident.display_name}</a></strong>
+                  <div class="small muted">{resident.phone_masked ?? ''}</div>
                 </p>
                 <table>
                   <tbody>
@@ -387,9 +393,10 @@ app.get('/rooms/:id', async (c) => {
                 <tbody>
                   {invoices.map((i) => (
                     <tr>
-                      <td><a href={`/invoices/${i.id}`}>{i.period}</a></td>
+                      <td><a href={`/invoices/${i.invoice_id}`}>{i.period}</a></td>
                       <td class="num">฿{baht(i.total)}</td>
-                      <td class="num"><Tag kind={i.status} label={t(`invoice.${i.status}` as 'invoice.paid')} /></td>
+                      <td class="num"><Tag kind={statusKey(i.effective_status)}
+                        label={t(`invoice.${statusKey(i.effective_status)}` as 'invoice.paid')} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -404,14 +411,15 @@ app.get('/rooms/:id', async (c) => {
                 <tbody>
                   {tickets.map((k) => (
                     <tr>
-                      <td><a href={`/tickets/${k.id}`}>{k.title}</a></td>
-                      <td class="num"><Tag kind={k.status} label={t(`ticket.${k.status}` as 'ticket.open')} /></td>
+                      <td><a href={`/tickets/${k.ticket_id}`}>{k.title}</a></td>
+                      <td class="num"><Tag kind={statusKey(k.status)}
+                        label={t(`ticket.${statusKey(k.status)}` as 'ticket.open')} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-            <a class="btn sm" href={`/tickets/new?room=${room.id}`} style="margin-top:.5rem">{t('ticket.new')}</a>
+            <a class="btn sm" href={`/tickets/new?room=${room.room_id}`} style="margin-top:.5rem">{t('ticket.new')}</a>
           </div>
         </div>
       </div>
@@ -420,23 +428,30 @@ app.get('/rooms/:id', async (c) => {
 });
 
 app.post('/rooms/:id', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.room.manage');
+  const repos = c.get('repos');
   const rid = c.req.param('id');
-  const room = await db.room(rid);
-  if (!room) return c.notFound();
+  const room = await repos.rooms.byId(tctx, rid);
   const f = await c.req.formData();
-  const contract = await db.activeContractForRoom(rid);
-  // An active contract owns the occupancy status; ignore any status posted then.
-  const status = contract ? 'occupied' : (['vacant', 'occupied', 'maintenance'].includes(str(f.get('status'))) ? str(f.get('status')) : room.status);
-  await db.run(
-    'UPDATE rooms SET number=?, floor=?, room_type=?, rent=?, deposit=?, status=? WHERE id=?',
-    str(f.get('number')) || room.number,
-    Math.max(1, Math.round(num(f.get('floor'), room.floor))),
-    str(f.get('room_type')) || null,
-    toSatang(num(f.get('rent'))),
-    toSatang(num(f.get('deposit'))),
-    status, rid,
-  );
+
+  // A live lease owns the occupancy status, so a posted one is ignored rather
+  // than trusted: the form disables the control, and a disabled control is a
+  // hint to the person, not a constraint on the request.
+  const live = await repos.contracts.activeForRoom(tctx, rid);
+  const posted = str(f.get('status')).toUpperCase();
+  const status = live.length
+    ? 'OCCUPIED'
+    : ((STATUSES as readonly string[]).includes(posted) ? posted : room.status);
+
+  await repos.rooms.update(tctx, rid, {
+    number: str(f.get('number')) || room.number,
+    floor: Math.max(1, Math.round(num(f.get('floor'), room.floor))),
+    room_type: str(f.get('room_type')) || null,
+    rent: toSatang(num(f.get('rent'))),
+    deposit: toSatang(num(f.get('deposit'))),
+    status: status as typeof room.status,
+  });
   return back(c, `/rooms/${rid}`, 'saved');
 });
 

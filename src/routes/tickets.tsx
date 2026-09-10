@@ -1,21 +1,31 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Layout, PageHead, Tag } from '../ui/layout';
-import { id, str, thaiDate, today } from '../lib/util';
+import { statusKey, str, thaiDate, today } from '../lib/util';
+import { ulid } from '../lib/ulid';
 
 const app = route();
 
+const STATUSES = ['OPEN', 'IN_PROGRESS', 'DONE', 'CANCELLED'] as const;
+const PRIORITIES = ['LOW', 'NORMAL', 'URGENT'] as const;
+/** Statuses that close a ticket, and so stamp closed_at. */
+const CLOSED = new Set<string>(['DONE', 'CANCELLED']);
+
 app.get('/tickets', async (c) => {
   const t = c.get('t');
-  const status = c.req.query('status') || '';
-  const rows = await c.get('db').ticketRows(status || undefined);
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.ticket.read');
+  const status = (c.req.query('status') || '').toUpperCase();
+  const rows = await c.get('repos').tickets.rows(tctx, status || undefined);
   return c.html(
     <Layout {...page(c, t('ticket.title'))}>
       <PageHead title={t('ticket.title')} sub={`${rows.length}`}>
         <form method="get" action="/tickets">
           <select name="status" onchange="this.form.submit()">
             <option value="">{t('common.all')}</option>
-            {(['open', 'in_progress', 'done', 'cancelled'] as const).map((s) => (
-              <option value={s} selected={s === status}>{t(`ticket.${s}` as 'ticket.open')}</option>
+            {STATUSES.map((s) => (
+              <option value={statusKey(s)} selected={s === status}>
+                {t(`ticket.${statusKey(s)}` as 'ticket.open')}
+              </option>
             ))}
           </select>
         </form>
@@ -38,12 +48,12 @@ app.get('/tickets', async (c) => {
               <tbody>
                 {rows.map((k) => (
                   <tr>
-                    <td><a href={`/tickets/${k.id}`}>{k.title}</a><div class="small muted">{thaiDate(k.created_at.slice(0, 10))}</div></td>
+                    <td><a href={`/tickets/${k.ticket_id}`}>{k.title}</a><div class="small muted">{thaiDate(k.created_at.slice(0, 10))}</div></td>
                     <td>{k.building_name} {k.room_number}</td>
-                    <td class="small">{k.tenant_name ?? '-'}</td>
-                    <td><Tag kind={k.priority} label={t(`ticket.${k.priority}` as 'ticket.normal')} /></td>
-                    <td><Tag kind={k.status} label={t(`ticket.${k.status}` as 'ticket.open')} /></td>
-                    <td class="num"><a class="btn sm" href={`/tickets/${k.id}`}>{t('common.view')}</a></td>
+                    <td class="small">{k.party_name ?? '-'}</td>
+                    <td><Tag kind={statusKey(k.priority)} label={t(`ticket.${statusKey(k.priority)}` as 'ticket.normal')} /></td>
+                    <td><Tag kind={statusKey(k.status)} label={t(`ticket.${statusKey(k.status)}` as 'ticket.open')} /></td>
+                    <td class="num"><a class="btn sm" href={`/tickets/${k.ticket_id}`}>{t('common.view')}</a></td>
                   </tr>
                 ))}
               </tbody>
@@ -56,15 +66,13 @@ app.get('/tickets', async (c) => {
 });
 
 app.get('/tickets/new', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const rooms = await db.all<{ id: string; number: string; building_name: string; tenant_id: string | null; tenant_name: string | null }>(
-    `SELECT r.id, r.number, b.name AS building_name, ct.tenant_id, tn.name AS tenant_name
-       FROM rooms r JOIN buildings b ON b.id = r.building_id
-       LEFT JOIN contracts ct ON ct.room_id = r.id AND ct.status = 'active'
-       LEFT JOIN tenants tn ON tn.id = ct.tenant_id
-      ORDER BY b.name, r.floor, r.number`,
-  );
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.ticket.manage');
+  const repos = c.get('repos');
+  const buildings = await repos.buildings.all(tctx);
+  const grids = await Promise.all(buildings.map((b) => repos.rooms.grid(tctx, b.building_id)));
+  const rooms = buildings.flatMap((b, i) => grids[i].map((r) => ({ ...r, building_name: b.name })));
   if (rooms.length === 0) return back(c, '/rooms', 'no_rooms', true);
   const preRoom = c.req.query('room') ?? '';
   return c.html(
@@ -77,8 +85,8 @@ app.get('/tickets/new', async (c) => {
           <label for="room_id">{t('room.title')}</label>
           <select id="room_id" name="room_id" required>
             {rooms.map((r) => (
-              <option value={r.id} selected={r.id === preRoom} data-tenant={r.tenant_id ?? ''}>
-                {r.building_name} {r.number}{r.tenant_name ? ` · ${r.tenant_name}` : ''}
+              <option value={r.room_id} selected={r.room_id === preRoom}>
+                {r.building_name} {r.number}{r.party_name ? ` · ${r.party_name}` : ''}
               </option>
             ))}
           </select>
@@ -95,9 +103,9 @@ app.get('/tickets/new', async (c) => {
           <div class="field">
             <label for="priority">{t('ticket.priority')}</label>
             <select id="priority" name="priority">
-              <option value="low">{t('ticket.low')}</option>
-              <option value="normal" selected>{t('ticket.normal')}</option>
-              <option value="urgent">{t('ticket.urgent')}</option>
+              {PRIORITIES.map((p) => (
+                <option value={p} selected={p === 'NORMAL'}>{t(`ticket.${statusKey(p)}` as 'ticket.normal')}</option>
+              ))}
             </select>
           </div>
           <div class="field">
@@ -112,40 +120,47 @@ app.get('/tickets/new', async (c) => {
 });
 
 app.post('/tickets', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.ticket.manage');
+  const repos = c.get('repos');
   const f = await c.req.formData();
   const roomId = str(f.get('room_id'));
   const title = str(f.get('title'));
   if (!roomId || !title) return back(c, '/tickets/new', 'missing', true);
+  await repos.rooms.byId(tctx, roomId);
 
-  const contract = await db.activeContractForRoom(roomId);
+  const live = await repos.contracts.activeForRoom(tctx, roomId);
   let photoKey: string | null = null;
   const photo = f.get('photo');
   if (photo instanceof File && photo.size > 0) {
-    photoKey = `tickets/${roomId}/${id('')}`;
+    // R2 keys are tenant-prefixed (STANDARD §9.6). Without the prefix one
+    // operator's object path is guessable from another's.
+    photoKey = `t/${tctx.tenantId}/tickets/${roomId}/${ulid()}`;
     await c.env.FILES.put(photoKey, await photo.arrayBuffer(), {
       httpMetadata: { contentType: photo.type || 'application/octet-stream' },
     });
   }
 
-  const tid = id('k_');
-  await db.run(
-    'INSERT INTO tickets (id, room_id, tenant_id, title, detail, priority, photo_key) VALUES (?,?,?,?,?,?,?)',
-    tid, roomId, contract?.tenant_id ?? null, title, str(f.get('detail')) || null,
-    str(f.get('priority')) || 'normal', photoKey,
-  );
-  return back(c, `/tickets/${tid}`, 'saved');
+  const priority = str(f.get('priority')).toUpperCase();
+  const ticket = await repos.tickets.insert(tctx, {
+    room_id: roomId,
+    party_id: live[0]?.party_id ?? null,
+    title,
+    detail: str(f.get('detail')) || null,
+    priority: ((PRIORITIES as readonly string[]).includes(priority) ? priority : 'NORMAL') as 'NORMAL',
+    photo_key: photoKey,
+  });
+  return back(c, `/tickets/${ticket.ticket_id}`, 'saved');
 });
 
 app.get('/tickets/:id', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const rows = await db.ticketRows();
-  const k = rows.find((r) => r.id === c.req.param('id'));
-  if (!k) return c.notFound();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.ticket.read');
+  const k = await c.get('repos').tickets.row(tctx, c.req.param('id'));
   return c.html(
     <Layout {...page(c, k.title)}>
-      <PageHead title={k.title} sub={`${k.building_name} ${k.room_number} · ${k.tenant_name ?? '-'}`}>
+      <PageHead title={k.title} sub={`${k.building_name} ${k.room_number} · ${k.party_name ?? '-'}`}>
         <a class="btn" href="/tickets">{t('common.back')}</a>
       </PageHead>
       <div class="grid c2">
@@ -155,22 +170,22 @@ app.get('/tickets/:id', async (c) => {
           {k.photo_key ? <p><a href={`/files/${k.photo_key}`} target="_blank">📷 {t('common.view')}</a></p> : null}
           <p class="small muted">{thaiDate(k.created_at.slice(0, 10))}</p>
         </div>
-        <form method="post" action={`/tickets/${k.id}`} class="card">
+        <form method="post" action={`/tickets/${k.ticket_id}`} class="card">
           <h2>{t('common.edit')}</h2>
           <div class="row">
             <div class="field">
               <label for="status">{t('room.status')}</label>
               <select id="status" name="status">
-                {(['open', 'in_progress', 'done', 'cancelled'] as const).map((s) => (
-                  <option value={s} selected={s === k.status}>{t(`ticket.${s}` as 'ticket.open')}</option>
+                {STATUSES.map((s) => (
+                  <option value={s} selected={s === k.status}>{t(`ticket.${statusKey(s)}` as 'ticket.open')}</option>
                 ))}
               </select>
             </div>
             <div class="field">
               <label for="priority">{t('ticket.priority')}</label>
               <select id="priority" name="priority">
-                {(['low', 'normal', 'urgent'] as const).map((p) => (
-                  <option value={p} selected={p === k.priority}>{t(`ticket.${p}` as 'ticket.normal')}</option>
+                {PRIORITIES.map((p) => (
+                  <option value={p} selected={p === k.priority}>{t(`ticket.${statusKey(p)}` as 'ticket.normal')}</option>
                 ))}
               </select>
             </div>
@@ -183,13 +198,20 @@ app.get('/tickets/:id', async (c) => {
 });
 
 app.post('/tickets/:id', async (c) => {
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.ticket.manage');
   const tid = c.req.param('id');
   const f = await c.req.formData();
-  const status = str(f.get('status')) || 'open';
-  await c.get('db').run(
-    'UPDATE tickets SET status = ?, priority = ?, closed_at = CASE WHEN ? IN (\'done\',\'cancelled\') THEN ? ELSE NULL END WHERE id = ?',
-    status, str(f.get('priority')) || 'normal', status, today(), tid,
-  );
+  const posted = str(f.get('status')).toUpperCase();
+  const priority = str(f.get('priority')).toUpperCase();
+  const status = (STATUSES as readonly string[]).includes(posted) ? posted : 'OPEN';
+
+  await c.get('repos').tickets.update(tctx, tid, {
+    status: status as 'OPEN',
+    priority: ((PRIORITIES as readonly string[]).includes(priority) ? priority : 'NORMAL') as 'NORMAL',
+    // Reopening clears the closing date rather than leaving a stale one behind.
+    closed_at: CLOSED.has(status) ? today() : null,
+  });
   return back(c, `/tickets/${tid}`, 'saved');
 });
 

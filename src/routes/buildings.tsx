@@ -1,8 +1,8 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Layout, PageHead } from '../ui/layout';
-import { baht, fromSatang, id, num, str, toSatang } from '../lib/util';
+import { baht, fromSatang, num, str, toSatang } from '../lib/util';
 import { normalizeTarget } from '../lib/promptpay';
-import type { Building } from '../types';
+import type { Building } from '../repo/types';
 import type { T } from '../lib/i18n';
 import type { Ctx } from '../app';
 
@@ -11,7 +11,7 @@ const app = route();
 function BuildingForm({ b, t }: { b: Building | null; t: T }) {
   const v = (n: number) => (n ? String(fromSatang(n)) : '0');
   return (
-    <form method="post" action={b ? `/buildings/${b.id}` : '/buildings'}>
+    <form method="post" action={b ? `/buildings/${b.building_id}` : '/buildings'}>
       <div class="card">
         <h2>{t('building.title')}</h2>
         <div class="row">
@@ -100,7 +100,7 @@ function BuildingForm({ b, t }: { b: Building | null; t: T }) {
   );
 }
 
-async function readForm(c: Ctx) {
+async function readForm(c: Ctx): Promise<Partial<Building>> {
   const f = await c.req.formData();
   const pp = str(f.get('promptpay_id'));
   return {
@@ -110,10 +110,10 @@ async function readForm(c: Ctx) {
     promptpay_id: pp || null,
     promptpay_name: str(f.get('promptpay_name')) || null,
     water_rate: toSatang(num(f.get('water_rate'))),
-    water_mode: str(f.get('water_mode')) === 'flat' ? 'flat' : 'meter',
+    water_mode: str(f.get('water_mode')) === 'flat' ? ('flat' as const) : ('meter' as const),
     water_flat: toSatang(num(f.get('water_flat'))),
     electric_rate: toSatang(num(f.get('electric_rate'))),
-    electric_mode: str(f.get('electric_mode')) === 'flat' ? 'flat' : 'meter',
+    electric_mode: str(f.get('electric_mode')) === 'flat' ? ('flat' as const) : ('meter' as const),
     electric_flat: toSatang(num(f.get('electric_flat'))),
     common_fee: toSatang(num(f.get('common_fee'))),
     late_fee_daily: toSatang(num(f.get('late_fee_daily'))),
@@ -123,9 +123,9 @@ async function readForm(c: Ctx) {
 
 app.get('/buildings', async (c) => {
   const t = c.get('t');
-  const rows = await c.get('db').all<Building & { rooms: number }>(
-    'SELECT b.*, (SELECT COUNT(*) FROM rooms r WHERE r.building_id = b.id) AS rooms FROM buildings b ORDER BY b.name',
-  );
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.building.read');
+  const rows = await c.get('repos').buildings.withRoomCounts(tctx);
   return c.html(
     <Layout {...page(c, t('building.title'))}>
       <PageHead title={t('building.title')}>
@@ -154,8 +154,8 @@ app.get('/buildings', async (c) => {
                     <td class="num">{b.electric_mode === 'flat' ? `${baht(b.electric_flat)} /เดือน` : `${baht(b.electric_rate)} /หน่วย`}</td>
                     <td>{b.promptpay_id ? <span class="small">{b.promptpay_id}</span> : <span class="muted small">-</span>}</td>
                     <td class="num">
-                      <a class="btn sm" href={`/buildings/${b.id}`}>{t('common.edit')}</a>{' '}
-                      <a class="btn sm" href={`/rooms?building=${b.id}`}>{t('room.title')}</a>
+                      <a class="btn sm" href={`/buildings/${b.building_id}`}>{t('common.edit')}</a>{' '}
+                      <a class="btn sm" href={`/rooms?building=${b.building_id}`}>{t('room.title')}</a>
                     </td>
                   </tr>
                 ))}
@@ -170,6 +170,7 @@ app.get('/buildings', async (c) => {
 
 app.get('/buildings/new', (c) => {
   const t = c.get('t');
+  requirePermission(c.get('tctx'), 'app.building.manage');
   return c.html(
     <Layout {...page(c, t('building.new'))}>
       <PageHead title={t('building.new')} sub={t('app.tagline')} />
@@ -179,26 +180,22 @@ app.get('/buildings/new', (c) => {
 });
 
 app.post('/buildings', async (c) => {
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.building.manage');
   const d = await readForm(c);
   if (!d.name) return back(c, '/buildings/new', 'missing', true);
   if (d.promptpay_id && !normalizeTarget(d.promptpay_id)) return back(c, '/buildings/new', 'พร้อมเพย์ไม่ถูกต้อง', true);
-  const bid = id('b_');
-  await c.get('db').run(
-    `INSERT INTO buildings (id, name, address, tax_id, promptpay_id, promptpay_name,
-       water_rate, water_mode, water_flat, electric_rate, electric_mode, electric_flat,
-       common_fee, late_fee_daily, due_day)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    bid, d.name, d.address, d.tax_id, d.promptpay_id, d.promptpay_name,
-    d.water_rate, d.water_mode, d.water_flat, d.electric_rate, d.electric_mode, d.electric_flat,
-    d.common_fee, d.late_fee_daily, d.due_day,
-  );
-  return back(c, `/rooms?building=${bid}`, 'saved');
+  // tenant_id is not passed and could not be: insert() takes it from tctx.
+  const b = await c.get('repos').buildings.insert(tctx, d);
+  return back(c, `/rooms?building=${b.building_id}`, 'saved');
 });
 
 app.get('/buildings/:id', async (c) => {
   const t = c.get('t');
-  const b = await c.get('db').building(c.req.param('id'));
-  if (!b) return c.notFound();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.building.read');
+  // Another tenant's id throws NotFound here, exactly as an unknown id does.
+  const b = await c.get('repos').buildings.byId(tctx, c.req.param('id'));
   return c.html(
     <Layout {...page(c, b.name)}>
       <PageHead title={b.name} sub={t('building.title')}>
@@ -210,18 +207,13 @@ app.get('/buildings/:id', async (c) => {
 });
 
 app.post('/buildings/:id', async (c) => {
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.building.manage');
   const bid = c.req.param('id');
   const d = await readForm(c);
   if (!d.name) return back(c, `/buildings/${bid}`, 'missing', true);
   if (d.promptpay_id && !normalizeTarget(d.promptpay_id)) return back(c, `/buildings/${bid}`, 'พร้อมเพย์ไม่ถูกต้อง', true);
-  await c.get('db').run(
-    `UPDATE buildings SET name=?, address=?, tax_id=?, promptpay_id=?, promptpay_name=?,
-       water_rate=?, water_mode=?, water_flat=?, electric_rate=?, electric_mode=?, electric_flat=?,
-       common_fee=?, late_fee_daily=?, due_day=? WHERE id=?`,
-    d.name, d.address, d.tax_id, d.promptpay_id, d.promptpay_name,
-    d.water_rate, d.water_mode, d.water_flat, d.electric_rate, d.electric_mode, d.electric_flat,
-    d.common_fee, d.late_fee_daily, d.due_day, bid,
-  );
+  await c.get('repos').buildings.update(tctx, bid, d);
   return back(c, '/buildings', 'saved');
 });
 

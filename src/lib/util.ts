@@ -111,6 +111,18 @@ export function thaiPeriod(period: string): string {
   return `${TH_MONTHS_FULL[m - 1]} ${y + 543}`;
 }
 
+/**
+ * A status value as a CSS class and an i18n key.
+ *
+ * The database stores statuses in upper case, which is what a state machine
+ * should look like in a query. The stylesheet and the translation table have
+ * always used lower case. One place to convert beats sprinkling
+ * `.toLowerCase()` through every template.
+ */
+export function statusKey(status: string): string {
+  return status.toLowerCase();
+}
+
 export function esc(s: unknown): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

@@ -1,7 +1,7 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Layout, PageHead, Tag } from '../ui/layout';
-import type { AnnouncementRow } from '../lib/db';
-import { id, str, thaiDate, today } from '../lib/util';
+import type { Announcement } from '../repo/types';
+import { str, thaiDate, today } from '../lib/util';
 
 const app = route();
 
@@ -10,7 +10,7 @@ type State = 'draft' | 'published' | 'expired';
 /** A draft has never been published; an expired one was, and its day has
  *  passed. Both are invisible to tenants, for different reasons, and the owner
  *  has to be able to tell them apart at a glance. */
-function stateOf(a: AnnouncementRow): State {
+function stateOf(a: Announcement): State {
   if (!a.published_at) return 'draft';
   if (a.expires_at && a.expires_at < today()) return 'expired';
   return 'published';
@@ -21,12 +21,14 @@ const TAG: Record<State, string> = { draft: 'draft', published: 'active', expire
 const preview = (body: string) => (body.length > 90 ? body.slice(0, 90) + '…' : body);
 
 app.get('/announcements', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.announcement.read');
+  const repos = c.get('repos');
   const buildingId = c.req.query('building') || '';
   const [rows, buildings] = await Promise.all([
-    db.announcementRows(buildingId || undefined),
-    db.buildings(),
+    repos.announcements.rows(tctx, buildingId || undefined),
+    repos.buildings.all(tctx),
   ]);
   return c.html(
     <Layout {...page(c, t('ann.title'))}>
@@ -36,7 +38,7 @@ app.get('/announcements', async (c) => {
             <select name="building" onchange="this.form.submit()">
               <option value="">{t('common.all')}</option>
               {buildings.map((b) => (
-                <option value={b.id} selected={b.id === buildingId}>{b.name}</option>
+                <option value={b.building_id} selected={b.building_id === buildingId}>{b.name}</option>
               ))}
             </select>
           </form>
@@ -64,7 +66,7 @@ app.get('/announcements', async (c) => {
                   return (
                     <tr>
                       <td>
-                        <a href={`/announcements/${a.id}`}>{a.pinned ? '📌 ' : ''}{a.title}</a>
+                        <a href={`/announcements/${a.announcement_id}`}>{a.pinned ? '📌 ' : ''}{a.title}</a>
                         <div class="small muted">{preview(a.body)}</div>
                       </td>
                       <td class="small">{a.building_name}</td>
@@ -87,11 +89,12 @@ app.get('/announcements', async (c) => {
 });
 
 app.get('/announcements/new', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.announcement.publish');
+  const buildings = await c.get('repos').buildings.all(tctx);
   if (buildings.length === 0) return back(c, '/buildings', 'no_building', true);
-  const preBuilding = c.req.query('building') || buildings[0].id;
+  const preBuilding = c.req.query('building') || buildings[0].building_id;
   return c.html(
     <Layout {...page(c, t('ann.new'))}>
       <PageHead title={t('ann.new')} sub={t('ann.new_sub')}>
@@ -102,7 +105,7 @@ app.get('/announcements/new', async (c) => {
           <label for="building_id">{t('ann.building')}</label>
           <select id="building_id" name="building_id" required>
             {buildings.map((b) => (
-              <option value={b.id} selected={b.id === preBuilding}>{b.name}</option>
+              <option value={b.building_id} selected={b.building_id === preBuilding}>{b.name}</option>
             ))}
           </select>
         </div>
@@ -135,31 +138,39 @@ app.get('/announcements/new', async (c) => {
 });
 
 app.post('/announcements', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.announcement.publish');
+  const repos = c.get('repos');
   const f = await c.req.formData();
   const buildingId = str(f.get('building_id'));
   const title = str(f.get('title'));
   const body = str(f.get('body'));
   if (!buildingId || !title || !body) return back(c, '/announcements/new', 'missing', true);
+  await repos.buildings.byId(tctx, buildingId);
 
-  const aid = id('a_');
+  const a = await repos.announcements.insert(tctx, {
+    building_id: buildingId,
+    title,
+    body,
+    pinned: f.get('pinned') ? 1 : 0,
+    expires_at: str(f.get('expires_at')) || null,
+    created_by: tctx.accountId,
+  });
+  // Saving and publishing are two things. published_at is not writable, so
+  // "save as draft" cannot accidentally send a notice to a hundred people.
   const publish = str(f.get('action')) === 'publish';
-  await db.run(
-    `INSERT INTO announcements (id, building_id, title, body, pinned, expires_at, published_at, created_by)
-     VALUES (?,?,?,?,?,?,${publish ? "datetime('now')" : 'NULL'},?)`,
-    aid, buildingId, title, body, f.get('pinned') ? 1 : 0,
-    str(f.get('expires_at')) || null, c.get('user').id,
-  );
-  return back(c, `/announcements/${aid}`, publish ? 'published' : 'saved');
+  if (publish) await repos.announcements.publish(tctx, a.announcement_id);
+  return back(c, `/announcements/${a.announcement_id}`, publish ? 'published' : 'saved');
 });
 
 app.get('/announcements/:id', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const a = await db.announcement(c.req.param('id'));
-  if (!a) return c.notFound();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.announcement.read');
+  const repos = c.get('repos');
+  const a = await repos.announcements.row(tctx, c.req.param('id'));
   const state = stateOf(a);
-  const audience = await db.announcementAudience(a.building_id);
+  const audience = await repos.announcements.audience(tctx, a.building_id);
   return c.html(
     <Layout {...page(c, a.title)}>
       <PageHead title={a.title} sub={`${a.building_name} · ${t(`ann.${state}` as 'ann.draft')}`}>
@@ -196,7 +207,7 @@ app.get('/announcements/:id', async (c) => {
           </div>
         </div>
 
-        <form method="post" action={`/announcements/${a.id}`} class="card">
+        <form method="post" action={`/announcements/${a.announcement_id}`} class="card">
           <h2>{t('common.edit')}</h2>
           <div class="field">
             <label for="title">{t('ann.subject')}</label>
@@ -226,15 +237,19 @@ app.get('/announcements/:id', async (c) => {
 });
 
 app.post('/announcements/:id', async (c) => {
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.announcement.publish');
   const aid = c.req.param('id');
   const f = await c.req.formData();
   const title = str(f.get('title'));
   const body = str(f.get('body'));
   if (!title || !body) return back(c, `/announcements/${aid}`, 'missing', true);
-  await c.get('db').run(
-    'UPDATE announcements SET title = ?, body = ?, pinned = ?, expires_at = ? WHERE id = ?',
-    title, body, f.get('pinned') ? 1 : 0, str(f.get('expires_at')) || null, aid,
-  );
+  await c.get('repos').announcements.update(tctx, aid, {
+    title,
+    body,
+    pinned: f.get('pinned') ? 1 : 0,
+    expires_at: str(f.get('expires_at')) || null,
+  });
   return back(c, `/announcements/${aid}`, 'saved');
 });
 
@@ -243,11 +258,11 @@ app.post('/announcements/:id', async (c) => {
    forward. Re-publishing an existing notice would move its date and push it
    back to the top of every tenant's list. */
 app.post('/announcements/:id/publish', async (c) => {
+  const tctx = c.get('tctx');
   const aid = c.req.param('id');
-  await c.get('db').run(
-    "UPDATE announcements SET published_at = datetime('now') WHERE id = ? AND published_at IS NULL",
-    aid,
-  );
+  // shouldPush is true only the first time. Editing a notice and publishing it
+  // again must not message a hundred residents a second time.
+  await c.get('repos').announcements.publish(tctx, aid);
   return back(c, `/announcements/${aid}`, 'published');
 });
 
@@ -255,12 +270,16 @@ app.post('/announcements/:id/publish', async (c) => {
  *  has already seen it is still true. */
 app.post('/announcements/:id/unpublish', async (c) => {
   const aid = c.req.param('id');
-  await c.get('db').run('UPDATE announcements SET published_at = NULL WHERE id = ?', aid);
+  await c.get('repos').announcements.unpublish(c.get('tctx'), aid);
   return back(c, `/announcements/${aid}`, 'unpublished');
 });
 
 app.post('/announcements/:id/delete', async (c) => {
-  await c.get('db').run('DELETE FROM announcements WHERE id = ?', c.req.param('id'));
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.announcement.publish');
+  // Soft delete. The read rows stay valid and the row is still there for the
+  // audit trail; nothing in the app can reach it again.
+  await c.get('repos').announcements.softDelete(tctx, c.req.param('id'));
   return back(c, '/announcements', 'deleted');
 });
 

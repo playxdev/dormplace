@@ -26,19 +26,21 @@ export const PDPA_VERSION = '1.0';
  * Intentionally generic — owners should have their own lawyer review the
  * wording before adopting it as a standard agreement.
  */
-export function LeaseBody({ contract, room, tenant, building, maskIdCard = false }: {
-  contract: any; room: any; tenant: any; building: any; maskIdCard?: boolean;
+export function LeaseBody({ contract, room, tenant, building, nationalId = null, maskIdCard = false }: {
+  contract: any; room: any; tenant: any; building: any; nationalId?: string | null; maskIdCard?: boolean;
 }) {
   const months = contract.end_date
     ? Math.max(1, Math.round((new Date(contract.end_date).getTime() - new Date(contract.start_date).getTime()) / (30 * 86400000)))
     : null;
 
-  // The tenant already knows their own ID number; anyone else holding the
-  // invite code does not need it. The unmasked number stays on the printed
-  // copy, which never leaves the backoffice.
-  const idCard = contract && tenant.id_card_no
-    ? (maskIdCard ? `x-xxxx-xxxxx-xx-${String(tenant.id_card_no).slice(-1)}` : tenant.id_card_no)
-    : null;
+  // The resident already knows their own ID number; anyone else holding the
+  // invitation code does not need it. The full number reaches this component
+  // only on the printed copy, which never leaves the backoffice, and only after
+  // a permissioned, audited reveal — everywhere else it is the last four digits
+  // the profile stores in the clear.
+  const idCard = maskIdCard || !nationalId
+    ? (tenant.national_id_last4 ? `x-xxxx-xxxxx-xx-${tenant.national_id_last4.slice(-1)}` : null)
+    : nationalId;
 
   return (
     <>
@@ -47,9 +49,9 @@ export function LeaseBody({ contract, room, tenant, building, maskIdCard = false
 
       <p>
         สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>{building.promptpay_name ?? building.name}</strong> ซึ่งต่อไปในสัญญานี้เรียกว่า
-        “ผู้ให้เช่า” ฝ่ายหนึ่ง กับ <strong>{tenant.name}</strong>
+        “ผู้ให้เช่า” ฝ่ายหนึ่ง กับ <strong>{tenant.display_name}</strong>
         {idCard ? ` เลขประจำตัวประชาชน ${idCard}` : ''}
-        {tenant.address ? ` อยู่บ้านเลขที่ ${tenant.address}` : ''} ซึ่งต่อไปในสัญญานี้เรียกว่า “ผู้เช่า” อีกฝ่ายหนึ่ง
+        {tenant.registered_address ? ` อยู่บ้านเลขที่ ${tenant.registered_address}` : ''} ซึ่งต่อไปในสัญญานี้เรียกว่า “ผู้เช่า” อีกฝ่ายหนึ่ง
         โดยทั้งสองฝ่ายตกลงทำสัญญากันดังมีข้อความต่อไปนี้
       </p>
 

@@ -12,80 +12,58 @@ function greetKey(): 'dash.greet_morning' | 'dash.greet_afternoon' | 'dash.greet
 }
 
 app.get('/', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
+  const tctx = c.get('tctx');
+  const repos = c.get('repos');
   const period = currentPeriod();
   const prev = shiftPeriod(period, -1);
   const now = today();
 
-  const building = await db.firstBuilding();
+  const building = await repos.buildings.first(tctx);
 
-  const [occ, collected, collectedPrev, collectedToday, outstanding, invoiceRows, recent, tickets, expiring, meterState, billedThis] =
+  const [occ, thisMonth, lastMonth, collectedToday, invoiceRows, recent, tickets, expiring, meterState] =
     await Promise.all([
-      db.one<{ total: number; occupied: number; vacant: number; maint: number }>(
-        `SELECT COUNT(*) AS total,
-                SUM(status = 'occupied')    AS occupied,
-                SUM(status = 'vacant')      AS vacant,
-                SUM(status = 'maintenance') AS maint
-           FROM rooms`,
-      ),
-      db.one<{ s: number }>("SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE substr(paid_at,1,7) = ?", period),
-      db.one<{ s: number }>("SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE substr(paid_at,1,7) = ?", prev),
-      db.one<{ s: number }>("SELECT COALESCE(SUM(amount),0) AS s FROM payments WHERE paid_at = ?", now),
-      db.one<{ s: number; n: number }>(
-        "SELECT COALESCE(SUM(total - paid_total),0) AS s, COUNT(*) AS n FROM invoices WHERE status IN ('unpaid','partial')",
-      ),
-      db.invoiceRows({ limit: 400 }),
-      db.all<{ id: string; amount: number; paid_at: string; tenant_name: string; room_number: string }>(
-        `SELECT p.id, p.amount, p.paid_at, t.name AS tenant_name, r.number AS room_number
-           FROM payments p
-           JOIN invoices i ON i.id = p.invoice_id
-           JOIN tenants  t ON t.id = i.tenant_id
-           JOIN rooms    r ON r.id = i.room_id
-          ORDER BY p.paid_at DESC, p.created_at DESC LIMIT 6`,
-      ),
-      db.one<{ n: number }>("SELECT COUNT(*) AS n FROM tickets WHERE status IN ('open','in_progress')"),
-      db.one<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM contracts WHERE status = 'active' AND end_date IS NOT NULL AND end_date <= date('now', '+45 day')",
-      ),
+      repos.stats.occupancy(tctx),
+      repos.stats.collected(tctx, { period }),
+      repos.stats.collected(tctx, { period: prev }),
+      repos.stats.collected(tctx, { day: now }),
+      repos.invoices.rows(tctx, { limit: 400 }),
+      repos.stats.recentPayments(tctx),
+      repos.stats.openTickets(tctx),
+      repos.stats.expiringLeases(tctx),
       building
-        ? db.one<{ due: number; got: number }>(
-            `SELECT COUNT(*) AS due,
-                    SUM(EXISTS (SELECT 1 FROM meter_readings m
-                                 WHERE m.room_id = r.id AND m.period = ?2 AND m.kind = 'electric')) AS got
-               FROM rooms r
-               JOIN contracts ct ON ct.room_id = r.id AND ct.status = 'active'
-              WHERE r.building_id = ?1`,
-            building.id, period,
-          )
-        : Promise.resolve(null),
-      db.one<{ n: number }>('SELECT COUNT(*) AS n FROM invoices WHERE period = ?', period),
+        ? repos.stats.meterProgress(tctx, building.building_id, period)
+        : Promise.resolve({ due: 0, got: 0 }),
     ]);
 
-  const total = occ?.total ?? 0;
-  const occupied = occ?.occupied ?? 0;
+  const total = occ.total ?? 0;
+  const occupied = occ.occupied ?? 0;
   const rate = total ? Math.round((occupied / total) * 100) : 0;
 
-  const thisMonth = collected?.s ?? 0;
-  const lastMonth = collectedPrev?.s ?? 0;
   const trend = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : 0;
 
-  const overdue = invoiceRows.filter((r) => (r.status === 'unpaid' || r.status === 'partial') && r.due_date < now);
-  const periodBilled = invoiceRows.filter((r) => r.period === period && r.status !== 'void');
-  const periodTotal = periodBilled.reduce((s, r) => s + r.total, 0);
-  const periodPaid = periodBilled.reduce((s, r) => s + r.paid_total, 0);
-  const collectRate = periodTotal ? Math.round((periodPaid / periodTotal) * 100) : 0;
+  // Overdue and outstanding both come from the effective status, so a job that
+  // did not run cannot make the dashboard look calmer than the data is.
+  const unpaid = invoiceRows.filter((r) => r.status === 'UNPAID' && r.total > r.paid);
+  const overdue = unpaid.filter((r) => r.due_date < now);
+  const outstandingTotal = unpaid.reduce((s, r) => s + (r.total - r.paid), 0);
 
-  const dueRooms = meterState?.due ?? 0;
-  const metered = meterState?.got ?? 0;
+  const periodBilled = invoiceRows.filter((r) => r.period === period && r.status !== 'VOID');
+  const periodTotal = periodBilled.reduce((s, r) => s + r.total, 0);
+  const periodPaid = periodBilled.reduce((s, r) => s + r.paid, 0);
+  const collectRate = periodTotal ? Math.round((periodPaid / periodTotal) * 100) : 0;
+  const billedThisPeriod = periodBilled.length;
+
+  const dueRooms = meterState.due ?? 0;
+  const metered = meterState.got ?? 0;
   const missingMeters = Math.max(0, dueRooms - metered);
-  const alreadyBilled = billedThis?.n ?? 0;
-  const openTickets = tickets?.n ?? 0;
-  const expiringSoon = expiring?.n ?? 0;
+  const alreadyBilled = billedThisPeriod;
+  const openTickets = tickets;
+  const expiringSoon = expiring;
 
   const attention = [
     missingMeters > 0 && { tone: 'warn', icon: 'gauge' as const, title: t('dash.missing_meters', { n: missingMeters }), sub: thaiPeriod(period), href: '/walk' },
-    overdue.length > 0 && { tone: 'bad', icon: 'alert' as const, title: t('dash.overdue_count', { n: overdue.length }), sub: `฿${baht(overdue.reduce((s, r) => s + (r.total - r.paid_total), 0))}`, href: '/invoices?status=unpaid' },
+    overdue.length > 0 && { tone: 'bad', icon: 'alert' as const, title: t('dash.overdue_count', { n: overdue.length }), sub: `฿${baht(overdue.reduce((s, r) => s + (r.total - r.paid), 0))}`, href: '/invoices?status=unpaid' },
     openTickets > 0 && { tone: 'info', icon: 'wrench' as const, title: `${t('nav.tickets')} ${openTickets}`, sub: t('ticket.open'), href: '/tickets?status=open' },
     expiringSoon > 0 && { tone: 'warn', icon: 'contract' as const, title: t('dash.contracts_expiring', { n: expiringSoon }), sub: '45 ' + t('common.days'), href: '/contracts' },
   ].filter(Boolean) as { tone: string; icon: 'gauge' | 'alert' | 'wrench' | 'contract'; title: string; sub: string; href: string }[];
@@ -95,9 +73,9 @@ app.get('/', async (c) => {
       <div>
         <h2>{t('dash.summary')}</h2>
         <RailStat label={t('dash.occupancy')} value={`${rate}%`} bar={{ pct: rate, tone: 'green' }} />
-        <RailStat label={t('dash.collected_today')} value={`฿${baht(collectedToday?.s ?? 0)}`} />
+        <RailStat label={t('dash.collected_today')} value={`฿${baht(collectedToday)}`} />
         <RailStat label={t('report.rate')} value={`${collectRate}%`} bar={{ pct: collectRate }} />
-        <RailStat label={t('dash.outstanding')} value={`฿${baht(outstanding?.s ?? 0)}`} />
+        <RailStat label={t('dash.outstanding')} value={`฿${baht(outstandingTotal)}`} />
       </div>
 
       <div>
@@ -128,7 +106,7 @@ app.get('/', async (c) => {
                 <span class="dot ok" aria-hidden="true">{Icon.check({ size: 14 })}</span>
                 <span class="txt">
                   <b>{t('room.number')} {p.room_number}</b>
-                  <span>{p.tenant_name} · {thaiDate(p.paid_at)}</span>
+                  <span>{p.party_name} · {thaiDate(p.paid_at)}</span>
                 </span>
                 <span class="amt">฿{baht(p.amount)}</span>
               </div>
@@ -143,9 +121,9 @@ app.get('/', async (c) => {
     <Layout
       {...page(c, t('nav.dashboard'))}
       rail={rail}
-      context={building ? { name: building.name, sub: `${total} ${t('common.rooms')}`, href: `/buildings/${building.id}` } : undefined}
+      context={building ? { name: building.name, sub: `${total} ${t('common.rooms')}`, href: `/buildings/${building.building_id}` } : undefined}
     >
-      <PageHead greet title={t(greetKey(), { name: c.get('user').name })} sub={t('dash.greet_sub')}>
+      <PageHead greet title={t(greetKey(), { name: c.get('account').display_name ?? '' })} sub={t('dash.greet_sub')}>
         <a class="btn" href="/walk">
           <span aria-hidden="true">{Icon.gauge({ size: 16 })}</span>{t('walk.title')}
         </a>
@@ -162,8 +140,8 @@ app.get('/', async (c) => {
           meta={<><Delta value={trend} /> <span>{thaiPeriod(period)}</span></>} />
         <Kpi label={t('report.collected')} value={`${collectRate}%`} icon="check" tone="blue"
           meta={<>฿{baht(periodPaid)} {t('common.of')} ฿{baht(periodTotal)}</>} />
-        <Kpi label={t('dash.outstanding')} value={baht(outstanding?.s ?? 0)} icon="alert" tone="red" currency
-          meta={<>{outstanding?.n ?? 0} {t('invoice.title')} · {overdue.length} {t('invoice.overdue')}</>} />
+        <Kpi label={t('dash.outstanding')} value={baht(outstandingTotal)} icon="alert" tone="red" currency
+          meta={<>{unpaid.length} {t('invoice.title')} · {overdue.length} {t('invoice.overdue')}</>} />
       </div>
 
       {/* --- billing hero: the one anchor that says "is this month ready?" --- */}
@@ -254,10 +232,10 @@ app.get('/', async (c) => {
                     <tr>
                       <td><a class="linkcell" href={`/invoices/${r.id}`}>{r.number}</a></td>
                       <td>{r.room_number}</td>
-                      <td>{r.tenant_name}</td>
+                      <td>{r.party_name}</td>
                       <td class="small">{thaiDate(r.due_date)}</td>
                       <td class="num"><Tag kind={late > 30 ? 'overdue' : 'unpaid'} label={String(late)} plain /></td>
-                      <td class="num strong">฿{baht(r.total - r.paid_total)}</td>
+                      <td class="num strong">฿{baht(r.total - r.paid)}</td>
                     </tr>
                   );
                 })}

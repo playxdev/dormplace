@@ -1,5 +1,5 @@
-import type { Building, Contract, InvoiceItem, MeterReading, Room } from '../types';
-import { addDays, daysBetween, id, periodBounds } from './util';
+import type { Building, Contract, InvoiceItem, MeterReading, Room } from '../repo/types';
+import { addDays, daysBetween, periodBounds } from './util';
 
 export interface DraftItem {
   kind: InvoiceItem['kind'];
@@ -28,7 +28,9 @@ export interface Draft {
 export function chargeWindow(contract: Contract, period: string) {
   const { start, end, days } = periodBounds(period);
   const from = contract.start_date > start ? contract.start_date : start;
-  const stop = contract.moved_out_at && contract.moved_out_at < end ? contract.moved_out_at : end;
+  // ended_at is a timestamp; the window works in dates, so it is trimmed.
+  const movedOut = contract.ended_at?.slice(0, 10) ?? null;
+  const stop = movedOut && movedOut < end ? movedOut : end;
   const chargedDays = stop < from ? 0 : daysBetween(from, stop) + 1;
   return { from, to: stop, chargedDays, periodDays: days, full: chargedDays >= days };
 }
@@ -38,7 +40,8 @@ export function isBillable(contract: Contract, period: string): boolean {
   const { end } = periodBounds(period);
   if (contract.start_date > end) return false;
   const { start } = periodBounds(period);
-  if (contract.moved_out_at && contract.moved_out_at < start) return false;
+  const movedOut = contract.ended_at?.slice(0, 10) ?? null;
+  if (movedOut && movedOut < start) return false;
   return true;
 }
 
@@ -65,7 +68,7 @@ export function buildDraft(input: BuildDraftInput, period: string): Draft {
       ? monthlyRent
       : Math.round((monthlyRent * win.chargedDays) / win.periodDays);
     items.push({
-      kind: 'rent',
+      kind: 'RENT',
       label: 'ค่าเช่าห้อง',
       detail: win.full ? null : `${win.from} ถึง ${win.to} (${win.chargedDays}/${win.periodDays} วัน)`,
       qty: win.full ? 1 : win.chargedDays,
@@ -78,13 +81,13 @@ export function buildDraft(input: BuildDraftInput, period: string): Draft {
   /* --- utilities --- */
   if (building.water_mode === 'flat') {
     if (building.water_flat > 0) {
-      items.push({ kind: 'water', label: 'ค่าน้ำ (เหมาจ่าย)', detail: null, qty: 1, unit: 'เดือน', unit_price: building.water_flat, amount: building.water_flat });
+      items.push({ kind: 'WATER', label: 'ค่าน้ำ (เหมาจ่าย)', detail: null, qty: 1, unit: 'เดือน', unit_price: building.water_flat, amount: building.water_flat });
     }
   } else if (water) {
     const used = Math.max(0, water.value - water.prev_value);
     const amount = Math.round(used * building.water_rate);
     items.push({
-      kind: 'water', label: 'ค่าน้ำประปา',
+      kind: 'WATER', label: 'ค่าน้ำประปา',
       detail: `${water.prev_value} → ${water.value}`,
       qty: used, unit: 'หน่วย', unit_price: building.water_rate, amount,
     });
@@ -94,13 +97,13 @@ export function buildDraft(input: BuildDraftInput, period: string): Draft {
 
   if (building.electric_mode === 'flat') {
     if (building.electric_flat > 0) {
-      items.push({ kind: 'electric', label: 'ค่าไฟ (เหมาจ่าย)', detail: null, qty: 1, unit: 'เดือน', unit_price: building.electric_flat, amount: building.electric_flat });
+      items.push({ kind: 'ELECTRIC', label: 'ค่าไฟ (เหมาจ่าย)', detail: null, qty: 1, unit: 'เดือน', unit_price: building.electric_flat, amount: building.electric_flat });
     }
   } else if (electric) {
     const used = Math.max(0, electric.value - electric.prev_value);
     const amount = Math.round(used * building.electric_rate);
     items.push({
-      kind: 'electric', label: 'ค่าไฟฟ้า',
+      kind: 'ELECTRIC', label: 'ค่าไฟฟ้า',
       detail: `${electric.prev_value} → ${electric.value}`,
       qty: used, unit: 'หน่วย', unit_price: building.electric_rate, amount,
     });
@@ -109,7 +112,7 @@ export function buildDraft(input: BuildDraftInput, period: string): Draft {
   }
 
   if (building.common_fee > 0) {
-    items.push({ kind: 'common', label: 'ค่าส่วนกลาง', detail: null, qty: 1, unit: 'เดือน', unit_price: building.common_fee, amount: building.common_fee });
+    items.push({ kind: 'COMMON', label: 'ค่าส่วนกลาง', detail: null, qty: 1, unit: 'เดือน', unit_price: building.common_fee, amount: building.common_fee });
   }
 
   /* --- deposit is billed once, on the invoice covering the move-in month --- */
@@ -117,7 +120,7 @@ export function buildDraft(input: BuildDraftInput, period: string): Draft {
   const movesInThisPeriod = contract.start_date >= start && contract.start_date <= end;
   const depositOwed = contract.deposit - contract.deposit_invoiced;
   if (movesInThisPeriod && depositOwed > 0) {
-    items.push({ kind: 'deposit', label: 'เงินประกันห้อง', detail: null, qty: 1, unit: null, unit_price: depositOwed, amount: depositOwed });
+    items.push({ kind: 'DEPOSIT', label: 'เงินประกันห้อง', detail: null, qty: 1, unit: null, unit_price: depositOwed, amount: depositOwed });
   }
 
   items.push(...extras);
@@ -146,4 +149,4 @@ export function lateFee(building: Building, dueDate: string, asOf: string): numb
   return late > 0 ? late * building.late_fee_daily : 0;
 }
 
-export { addDays, id };
+export { addDays };

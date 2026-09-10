@@ -1,6 +1,17 @@
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { T } from '../lib/i18n';
-import type { User } from '../types';
+
+/**
+ * What the shell needs to draw a person: a name for the avatar and a role label
+ * for the caption. Not an identity record — the layout has no business holding
+ * an email or a password hash, and `role` here is the resolved membership's
+ * role key, since an account has no role of its own.
+ */
+export interface ViewUser {
+  id: string;
+  name: string;
+  role: string;
+}
 import { Icon, type IconName } from './icons';
 import { APP_JS, THEME_INIT } from './theme';
 
@@ -58,7 +69,7 @@ function isCurrent(path: string, href: string): boolean {
 
 const initials = (name: string) => name.trim().slice(0, 2).toUpperCase();
 
-const Sidebar: FC<{ t: T; path: string; user: User; context?: SideContext }> = ({ t, path, user, context }) => (
+const Sidebar: FC<{ t: T; path: string; user: ViewUser; context?: SideContext }> = ({ t, path, user, context }) => (
   <nav class="sidebar" aria-label={t('nav.dashboard')}>
     <a class="logo" href="/">
       <span>dorm</span><span class="dot">.</span><span>place</span>
@@ -107,7 +118,7 @@ const Sidebar: FC<{ t: T; path: string; user: User; context?: SideContext }> = (
   </nav>
 );
 
-const Topbar: FC<{ t: T; user: User; locale: string }> = ({ t, user, locale }) => (
+const Topbar: FC<{ t: T; user: ViewUser; locale: string }> = ({ t, user, locale }) => (
   <header class="topbar">
     <button class="icon-btn menu-btn" type="button" aria-label={t('nav.menu')} aria-expanded="false">
       {Icon.menu({ size: 20 })}
@@ -148,7 +159,7 @@ export interface LayoutProps {
   t: T;
   title: string;
   path: string;
-  user: User;
+  user: ViewUser;
   locale: string;
   flash?: { kind: 'ok' | 'err' | 'warn'; text: string } | null;
   /** Optional right-hand summary column. Only pass it where it earns its space. */

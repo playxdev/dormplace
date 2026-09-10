@@ -1,4 +1,4 @@
-import { page, route } from '../app';
+import { page, requirePermission, route } from '../app';
 import { Empty, Layout, PageHead } from '../ui/layout';
 import { baht, currentPeriod, daysBetween, shiftPeriod, thaiDate, thaiPeriod, today } from '../lib/util';
 
@@ -7,36 +7,26 @@ const app = route();
 interface MonthRow { period: string; billed: number; collected: number; count: number }
 
 app.get('/reports', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.report.read');
+  const repos = c.get('repos');
   const now = today();
   const from = shiftPeriod(currentPeriod(), -11);
 
-  const [months, aging, byKind] = await Promise.all([
-    db.all<MonthRow>(
-      `SELECT period,
-              SUM(total)      AS billed,
-              SUM(paid_total) AS collected,
-              COUNT(*)        AS count
-         FROM invoices
-        WHERE status != 'void' AND period >= ?
-        GROUP BY period ORDER BY period DESC`,
-      from,
-    ),
-    db.invoiceRows({}).then((rows) =>
-      rows
-        .filter((r) => (r.status === 'unpaid' || r.status === 'partial') && r.total > r.paid_total)
-        .map((r) => ({ ...r, daysLate: Math.max(0, daysBetween(r.due_date, now)) }))
-        .sort((a, b) => b.daysLate - a.daysLate),
-    ),
-    db.all<{ kind: string; amount: number }>(
-      `SELECT it.kind, SUM(it.amount) AS amount
-         FROM invoice_items it JOIN invoices i ON i.id = it.invoice_id
-        WHERE i.status != 'void' AND i.period >= ?
-        GROUP BY it.kind ORDER BY amount DESC`,
-      from,
-    ),
+  const [months, allInvoices, byKind] = await Promise.all([
+    repos.stats.monthly(tctx, from),
+    repos.invoices.rows(tctx, { limit: 1000 }),
+    repos.stats.byKind(tctx, from),
   ]);
+
+  // Aged receivables: what is still owed, oldest first. `paid` counts verified
+  // payments only, so a slip awaiting a decision keeps the debt on the list —
+  // which is where the operator needs to see it.
+  const aging = allInvoices
+    .filter((r) => r.status === 'UNPAID' && r.total > r.paid)
+    .map((r) => ({ ...r, daysLate: Math.max(0, daysBetween(r.due_date, now)) }))
+    .sort((a, b) => b.daysLate - a.daysLate);
 
   const buckets = [
     { label: '1–7 วัน', min: 1, max: 7 },
@@ -45,7 +35,7 @@ app.get('/reports', async (c) => {
     { label: '60+ วัน', min: 61, max: 100000 },
   ].map((b) => {
     const rows = aging.filter((a) => a.daysLate >= b.min && a.daysLate <= b.max);
-    return { ...b, count: rows.length, amount: rows.reduce((s, r) => s + (r.total - r.paid_total), 0) };
+    return { ...b, count: rows.length, amount: rows.reduce((s, r) => s + (r.total - r.paid), 0) };
   });
   const notDue = aging.filter((a) => a.daysLate === 0);
   const maxBilled = Math.max(1, ...months.map((m) => m.billed));
@@ -107,7 +97,7 @@ app.get('/reports', async (c) => {
               <tr>
                 <td>ยังไม่ครบกำหนด</td>
                 <td class="num">{notDue.length}</td>
-                <td class="num">฿{baht(notDue.reduce((s, r) => s + (r.total - r.paid_total), 0))}</td>
+                <td class="num">฿{baht(notDue.reduce((s, r) => s + (r.total - r.paid), 0))}</td>
               </tr>
               {buckets.map((b) => (
                 <tr>
@@ -153,12 +143,12 @@ app.get('/reports', async (c) => {
               <tbody>
                 {aging.slice(0, 60).map((r) => (
                   <tr>
-                    <td><a href={`/invoices/${r.id}`}>{r.number}</a></td>
+                    <td><a href={`/invoices/${r.invoice_id}`}>{r.number}</a></td>
                     <td>{r.room_number}</td>
-                    <td class="small">{r.tenant_name}</td>
+                    <td class="small">{r.party_name}</td>
                     <td class="small">{thaiDate(r.due_date)}</td>
                     <td class="num" style={r.daysLate > 30 ? 'color:var(--danger);font-weight:600' : ''}>{r.daysLate || '-'}</td>
-                    <td class="num">฿{baht(r.total - r.paid_total)}</td>
+                    <td class="num">฿{baht(r.total - r.paid)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -172,14 +162,16 @@ app.get('/reports', async (c) => {
 
 /** CSV for the owner's accountant: one row per invoice, UTF-8 BOM so Excel reads Thai. */
 app.get('/reports/export.csv', async (c) => {
-  const rows = await c.get('db').invoiceRows({ limit: 5000 });
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.report.export');
+  const rows = await c.get('repos').invoices.rows(tctx, { limit: 1000 });
   const header = ['invoice_no', 'period', 'building', 'room', 'tenant', 'issue_date', 'due_date', 'subtotal', 'discount', 'total', 'paid', 'outstanding', 'status'];
   const lines = [header.join(',')];
   for (const r of rows) {
     lines.push([
-      r.number, r.period, r.building_name, r.room_number, r.tenant_name, r.issue_date, r.due_date,
+      r.number, r.period, r.building_name, r.room_number, r.party_name, r.issue_date, r.due_date,
       (r.subtotal / 100).toFixed(2), (r.discount / 100).toFixed(2), (r.total / 100).toFixed(2),
-      (r.paid_total / 100).toFixed(2), ((r.total - r.paid_total) / 100).toFixed(2), r.status,
+      (r.paid / 100).toFixed(2), ((r.total - r.paid) / 100).toFixed(2), r.effective_status,
     ].map((v) => {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

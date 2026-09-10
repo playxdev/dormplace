@@ -1,13 +1,18 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Layout, PageHead, Tag } from '../ui/layout';
-import { baht, fromSatang, id, num, str, thaiDate, today, toSatang } from '../lib/util';
+import { baht, fromSatang, num, statusKey, str, thaiDate, today, toSatang } from '../lib/util';
 
 const app = route();
 
 app.get('/contracts', async (c) => {
   const t = c.get('t');
-  const status = (c.req.query('status') as 'active' | 'ended' | undefined) ?? 'active';
-  const rows = await c.get('db').contractRows(status);
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.contract.read');
+  const status = c.req.query('status') === 'ended' ? 'ended' : 'active';
+  // "Active" means anything still running, which includes a lease under notice.
+  const rows = await c.get('repos').contracts.rows(
+    tctx, status === 'ended' ? ['ENDED'] : ['DRAFT', 'ACTIVE', 'ENDING'],
+  );
   return c.html(
     <Layout {...page(c, t('contract.title'))}>
       <PageHead title={t('contract.title')} sub={`${rows.length}`}>
@@ -37,11 +42,11 @@ app.get('/contracts', async (c) => {
                 {rows.map((r) => (
                   <tr>
                     <td><a href={`/rooms/${r.room_id}`}>{r.building_name} {r.room_number}</a></td>
-                    <td><a href={`/tenants/${r.tenant_id}`}>{r.tenant_name}</a><div class="small muted">{r.tenant_phone ?? ''}</div></td>
+                    <td><a href={`/residents/${r.party_id}`}>{r.party_name}</a><div class="small muted">{r.phone_masked ?? ''}</div></td>
                     <td>{thaiDate(r.start_date)}</td>
                     <td>{r.end_date ? thaiDate(r.end_date) : <span class="muted">-</span>}</td>
                     <td class="num">฿{baht(r.rent)}</td>
-                    <td class="num"><a class="btn sm" href={`/contracts/${r.id}`}>{t('common.view')}</a></td>
+                    <td class="num"><a class="btn sm" href={`/contracts/${r.contract_id}`}>{t('common.view')}</a></td>
                   </tr>
                 ))}
               </tbody>
@@ -54,18 +59,16 @@ app.get('/contracts', async (c) => {
 });
 
 app.get('/contracts/new', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const [vacant, tenants] = await Promise.all([
-    db.all<{ id: string; number: string; floor: number; rent: number; deposit: number; building_name: string }>(
-      `SELECT r.id, r.number, r.floor, r.rent, r.deposit, b.name AS building_name
-         FROM rooms r JOIN buildings b ON b.id = r.building_id
-        WHERE r.status = 'vacant' ORDER BY b.name, r.floor, r.number`,
-    ),
-    db.tenants(),
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.contract.create');
+  const repos = c.get('repos');
+  const [vacant, residents] = await Promise.all([
+    repos.rooms.vacant(tctx),
+    repos.parties.all(tctx, { limit: 1000 }),
   ]);
   const preRoom = c.req.query('room') ?? '';
-  const preTenant = c.req.query('tenant') ?? '';
+  const preResident = c.req.query('resident') ?? '';
 
   if (vacant.length === 0) {
     return c.html(
@@ -80,7 +83,7 @@ app.get('/contracts/new', async (c) => {
     <Layout {...page(c, t('contract.new'))}>
       <PageHead title={t('contract.new')}>
         <a class="btn" href="/contracts">{t('common.back')}</a>
-        <a class="btn" href="/tenants/new?next=contract">{t('tenant.new')}</a>
+        <a class="btn" href="/residents/new?next=contract">{t('tenant.new')}</a>
       </PageHead>
       <form method="post" action="/contracts" class="card" style="max-width:760px">
         <div class="row">
@@ -88,17 +91,22 @@ app.get('/contracts/new', async (c) => {
             <label for="room_id">{t('room.title')}</label>
             <select id="room_id" name="room_id" required>
               {vacant.map((r) => (
-                <option value={r.id} selected={r.id === preRoom} data-rent={String(fromSatang(r.rent))} data-deposit={String(fromSatang(r.deposit))}>
+                <option value={r.room_id} selected={r.room_id === preRoom}
+                  data-rent={String(fromSatang(r.rent))} data-deposit={String(fromSatang(r.deposit))}>
                   {r.building_name} · {r.number} · ฿{baht(r.rent)}
                 </option>
               ))}
             </select>
           </div>
           <div class="field">
-            <label for="tenant_id">{t('tenant.title')}</label>
-            <select id="tenant_id" name="tenant_id" required>
+            <label for="party_id">{t('tenant.title')}</label>
+            <select id="party_id" name="party_id" required>
               <option value="">{t('common.select')}…</option>
-              {tenants.map((tn) => <option value={tn.id} selected={tn.id === preTenant}>{tn.name} {tn.phone ? `· ${tn.phone}` : ''}</option>)}
+              {residents.map((rp) => (
+                <option value={rp.party_id} selected={rp.party_id === preResident}>
+                  {rp.display_name} {rp.phone_masked ? `· ${rp.phone_masked}` : ''}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -166,62 +174,67 @@ app.get('/contracts/new', async (c) => {
 });
 
 app.post('/contracts', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.contract.create');
+  const repos = c.get('repos');
   const f = await c.req.formData();
   const roomId = str(f.get('room_id'));
-  const tenantId = str(f.get('tenant_id'));
+  const partyId = str(f.get('party_id'));
   const startDate = str(f.get('start_date'));
-  if (!roomId || !tenantId || !startDate) return back(c, '/contracts/new', 'missing', true);
+  if (!roomId || !partyId || !startDate) return back(c, '/contracts/new', 'missing', true);
 
-  const existing = await db.activeContractForRoom(roomId);
-  if (existing) return back(c, '/contracts/new', 'room_taken', true);
+  // Both ids arrived in a form. byId() proves each belongs to this tenant
+  // before either is written as a foreign key.
+  const room = await repos.rooms.byId(tctx, roomId);
+  await repos.parties.byId(tctx, partyId);
 
-  const room = await db.room(roomId);
-  if (!room) return c.notFound();
+  const live = await repos.contracts.activeForRoom(tctx, roomId);
+  if (live.length) return back(c, '/contracts/new', 'room_taken', true);
 
-  const cid = id('c_');
-  await db.batch([
-    db.prep(
-      `INSERT INTO contracts (id, room_id, tenant_id, start_date, end_date, rent, deposit, deposit_paid,
-         water_start, electric_start) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      cid, roomId, tenantId, startDate, str(f.get('end_date')) || null,
-      toSatang(num(f.get('rent'), fromSatang(room.rent))),
-      toSatang(num(f.get('deposit'), fromSatang(room.deposit))),
-      toSatang(num(f.get('deposit_paid'))),
-      Math.round(num(f.get('water_start'))), Math.round(num(f.get('electric_start'))),
-    ),
-    db.prep("UPDATE rooms SET status = 'occupied' WHERE id = ?", roomId),
-  ]);
-  return back(c, `/contracts/${cid}`, 'saved');
+  const contract = await repos.contracts.insert(tctx, {
+    room_id: roomId,
+    party_id: partyId,
+    start_date: startDate,
+    end_date: str(f.get('end_date')) || null,
+    rent: toSatang(num(f.get('rent'), fromSatang(room.rent))),
+    deposit: toSatang(num(f.get('deposit'), fromSatang(room.deposit))),
+    deposit_paid: toSatang(num(f.get('deposit_paid'))),
+    water_start: Math.round(num(f.get('water_start'))),
+    electric_start: Math.round(num(f.get('electric_start'))),
+  });
+  // The lease is signed on paper at the desk, so it is live and the room is
+  // occupied now. The resident confirming it in the app later is a separate
+  // step that records what they agreed to; it is not what starts the tenancy.
+  await repos.contracts.activate(tctx, contract.contract_id);
+  return back(c, `/contracts/${contract.contract_id}`, 'saved');
 });
 
 app.get('/contracts/:id', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const contract = await db.contract(c.req.param('id'));
-  if (!contract) return c.notFound();
-  const [room, tenant, invoices] = await Promise.all([
-    db.room(contract.room_id),
-    db.tenant(contract.tenant_id),
-    db.all<{ id: string; number: string; period: string; total: number; paid_total: number; status: string }>(
-      'SELECT id, number, period, total, paid_total, status FROM invoices WHERE contract_id = ? ORDER BY period DESC',
-      contract.id,
-    ),
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.contract.read');
+  const repos = c.get('repos');
+  const contract = await repos.contracts.byId(tctx, c.req.param('id'));
+  const [room, resident, invoices] = await Promise.all([
+    repos.rooms.byId(tctx, contract.room_id),
+    repos.parties.byId(tctx, contract.party_id),
+    repos.invoices.rows(tctx, { contractId: contract.contract_id }),
   ]);
-  const building = room ? await db.building(room.building_id) : null;
+  const building = await repos.buildings.byId(tctx, room.building_id);
+  const live = contract.status === 'ACTIVE' || contract.status === 'ENDING';
 
   return c.html(
     <Layout {...page(c, t('contract.title'))}>
-      <PageHead title={`${building?.name ?? ''} ${room?.number ?? ''}`} sub={tenant?.name}>
+      <PageHead title={`${building.name} ${room.number}`} sub={resident.display_name ?? ''}>
         <a class="btn" href="/contracts">{t('common.back')}</a>
-        <a class="btn" href={`/contracts/${contract.id}/print`} target="_blank">{t('invoice.print')}</a>
-        {contract.status === 'active'
-          ? <a class="btn primary" href={`/contracts/${contract.id}/invite`}>{t('invite.title')}</a>
+        <a class="btn" href={`/contracts/${contract.contract_id}/print`} target="_blank">{t('invoice.print')}</a>
+        {live
+          ? <a class="btn primary" href={`/contracts/${contract.contract_id}/invite`}>{t('invite.title')}</a>
           : null}
       </PageHead>
 
       <div class="grid c2">
-        <form method="post" action={`/contracts/${contract.id}`} class="card">
+        <form method="post" action={`/contracts/${contract.contract_id}`} class="card">
           <h2>{t('contract.title')}</h2>
           <div class="row">
             <div class="field">
@@ -263,18 +276,28 @@ app.get('/contracts/:id', async (c) => {
           </div>
           <div class="btn-row">
             <button class="btn primary" type="submit">{t('common.save')}</button>
-            <Tag kind={contract.status} label={t(`contract.${contract.status}` as 'contract.active')} />
+            <Tag kind={statusKey(contract.status)}
+              label={t(`contract.${statusKey(contract.status)}` as 'contract.active')} />
+            {contract.confirmed_at
+              ? <span class="small muted">{t('contract.confirmed')} {thaiDate(contract.confirmed_at)}</span>
+              : <span class="small muted">{t('contract.unconfirmed')}</span>}
           </div>
         </form>
 
         <div>
-          {contract.status === 'active' ? (
-            <form method="post" action={`/contracts/${contract.id}/checkout`} class="card"
+          {live ? (
+            <form method="post" action={`/contracts/${contract.contract_id}/checkout`} class="card"
               onsubmit={`return confirm('${t('contract.checkout_confirm')}')`}>
               <h2>{t('contract.checkout')}</h2>
               <div class="field">
                 <label for="moved_out_at">{t('contract.checkout')}</label>
                 <input id="moved_out_at" name="moved_out_at" type="date" value={today()} required />
+              </div>
+              {/* Required, and it goes into the audit row. A lease that ended
+                  for no recorded reason is a dispute nobody can settle later. */}
+              <div class="field">
+                <label for="reason">{t('contract.end_reason')}</label>
+                <input id="reason" name="reason" required placeholder="ย้ายออกตามกำหนด" />
               </div>
               <p class="small muted">{t('contract.checkout_confirm')}</p>
               <button class="btn danger" type="submit">{t('contract.checkout')}</button>
@@ -282,7 +305,15 @@ app.get('/contracts/:id', async (c) => {
           ) : (
             <div class="card">
               <h2>{t('contract.ended')}</h2>
-              <p>{thaiDate(contract.moved_out_at)}</p>
+              <p>{thaiDate(contract.ended_at)}</p>
+              {contract.ending_reason ? <p class="small muted">{contract.ending_reason}</p> : null}
+              {/* Seven days from hand-back, written by the system when the
+                  lease ended. */}
+              {contract.deposit_return_due_at ? (
+                <p class="small">
+                  {t('contract.deposit_return_due')} <strong>{thaiDate(contract.deposit_return_due_at)}</strong>
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -293,9 +324,10 @@ app.get('/contracts/:id', async (c) => {
                 <tbody>
                   {invoices.map((i) => (
                     <tr>
-                      <td><a href={`/invoices/${i.id}`}>{i.number}</a></td>
+                      <td><a href={`/invoices/${i.invoice_id}`}>{i.number}</a></td>
                       <td class="num">฿{baht(i.total)}</td>
-                      <td class="num"><Tag kind={i.status} label={t(`invoice.${i.status}` as 'invoice.paid')} /></td>
+                      <td class="num"><Tag kind={statusKey(i.effective_status)}
+                        label={t(`invoice.${statusKey(i.effective_status)}` as 'invoice.paid')} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -309,30 +341,35 @@ app.get('/contracts/:id', async (c) => {
 });
 
 app.post('/contracts/:id', async (c) => {
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.contract.amend');
   const cid = c.req.param('id');
   const f = await c.req.formData();
-  await c.get('db').run(
-    `UPDATE contracts SET start_date=?, end_date=?, rent=?, deposit=?, deposit_paid=?,
-       water_start=?, electric_start=?, note=? WHERE id=?`,
-    str(f.get('start_date')), str(f.get('end_date')) || null,
-    toSatang(num(f.get('rent'))), toSatang(num(f.get('deposit'))), toSatang(num(f.get('deposit_paid'))),
-    Math.round(num(f.get('water_start'))), Math.round(num(f.get('electric_start'))),
-    str(f.get('note')) || null, cid,
-  );
+  // Amending the rent moves `rent`. It does not move `agreed_rent`, which is
+  // not writable and records what the resident accepted.
+  await c.get('repos').contracts.update(tctx, cid, {
+    start_date: str(f.get('start_date')),
+    end_date: str(f.get('end_date')) || null,
+    rent: toSatang(num(f.get('rent'))),
+    deposit: toSatang(num(f.get('deposit'))),
+    deposit_paid: toSatang(num(f.get('deposit_paid'))),
+    water_start: Math.round(num(f.get('water_start'))),
+    electric_start: Math.round(num(f.get('electric_start'))),
+    note: str(f.get('note')) || null,
+  });
   return back(c, `/contracts/${cid}`, 'saved');
 });
 
 app.post('/contracts/:id/checkout', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.contract.end');
   const cid = c.req.param('id');
-  const contract = await db.contract(cid);
-  if (!contract) return c.notFound();
   const f = await c.req.formData();
-  const movedOut = str(f.get('moved_out_at')) || today();
-  await db.batch([
-    db.prep("UPDATE contracts SET status = 'ended', moved_out_at = ? WHERE id = ?", movedOut, cid),
-    db.prep("UPDATE rooms SET status = 'vacant' WHERE id = ?", contract.room_id),
-  ]);
+  const reason = str(f.get('reason'));
+  if (!reason) return back(c, `/contracts/${cid}`, 'missing', true);
+  // end() frees the room and sets the deposit-return date in the same batch as
+  // the audit row.
+  await c.get('repos').contracts.end(tctx, cid, reason, str(f.get('moved_out_at')) || today());
   return back(c, `/contracts/${cid}`, 'checked_out');
 });
 

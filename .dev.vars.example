@@ -1,0 +1,19 @@
+# Local development secrets. Copy to `.dev.vars`, which is git-ignored.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# In production these are Workers secrets, not vars:
+#
+#   npx wrangler secret put DATA_MASTER_KEY
+#   npx wrangler secret put PII_PEPPER
+#
+# Generate real ones with:  openssl rand -base64 32
+#
+# The values below are for local development only. They are in version control,
+# so anything encrypted under them is not protected — never point a deployment
+# at them.
+#
+# PII_PEPPER is effectively permanent: changing it invalidates every stored
+# phone hash, and matching a resident by number stops working.
+DATA_MASTER_KEY="ZGV2LW9ubHktbWFzdGVyLWtleS0zMi1ieXRlcyEhISE="
+PII_PEPPER="ZGV2LW9ubHktcGlpLXBlcHBlci0zMi1ieXRlcyEhISE="

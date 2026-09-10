@@ -1,191 +1,176 @@
--- Demo data for local development. Run after migrations.
-DELETE FROM invoice_items; DELETE FROM payments; DELETE FROM invoices; DELETE FROM meter_readings;
-DELETE FROM tickets; DELETE FROM contracts; DELETE FROM tenants; DELETE FROM rooms; DELETE FROM buildings; DELETE FROM counters;
-INSERT INTO buildings (id, name, address, tax_id, promptpay_id, promptpay_name,
-  water_rate, water_mode, water_flat, electric_rate, electric_mode, electric_flat,
-  common_fee, late_fee_daily, due_day)
-VALUES ('b_demo1', 'บ้านสวนอพาร์ทเมนท์', '99/9 ถ.พหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพฯ 10900',
-  '0105551234567', '0812345678', 'นายสมศักดิ์ บ้านสวน',
-  1800, 'meter', 0, 800, 'meter', 0, 20000, 5000, 5);
-INSERT INTO buildings (id, name, address, promptpay_id, promptpay_name,
-  water_rate, water_mode, water_flat, electric_rate, electric_mode, electric_flat, common_fee, due_day)
-VALUES ('b_demo2', 'หอพักนักศึกษา ริมคลอง', '12 ซ.รังสิต-นครนายก 12 ปทุมธานี 12110',
-  '0898765432', 'น.ส.มาลี ริมคลอง', 0, 'flat', 15000, 700, 'meter', 0, 0, 5);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a101','b_demo1',1,'101','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a102','b_demo1',1,'102','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a103','b_demo1',1,'103','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a104','b_demo1',1,'104','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a105','b_demo1',1,'105','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a106','b_demo1',1,'106','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a107','b_demo1',1,'107','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a108','b_demo1',1,'108','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a109','b_demo1',1,'109','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a110','b_demo1',1,'110','พัดลม',350000,700000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a201','b_demo1',2,'201','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a202','b_demo1',2,'202','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a203','b_demo1',2,'203','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a204','b_demo1',2,'204','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a205','b_demo1',2,'205','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a206','b_demo1',2,'206','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a207','b_demo1',2,'207','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a208','b_demo1',2,'208','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a209','b_demo1',2,'209','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a210','b_demo1',2,'210','พัดลม',370000,740000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a301','b_demo1',3,'301','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a302','b_demo1',3,'302','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a303','b_demo1',3,'303','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a304','b_demo1',3,'304','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a305','b_demo1',3,'305','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a306','b_demo1',3,'306','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a307','b_demo1',3,'307','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a308','b_demo1',3,'308','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a309','b_demo1',3,'309','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a310','b_demo1',3,'310','แอร์',390000,780000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a401','b_demo1',4,'401','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a402','b_demo1',4,'402','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a403','b_demo1',4,'403','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a404','b_demo1',4,'404','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a405','b_demo1',4,'405','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a406','b_demo1',4,'406','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a407','b_demo1',4,'407','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a408','b_demo1',4,'408','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a409','b_demo1',4,'409','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_a410','b_demo1',4,'410','แอร์',410000,820000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b101','b_demo2',1,'101','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b102','b_demo2',1,'102','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b103','b_demo2',1,'103','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b104','b_demo2',1,'104','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b105','b_demo2',1,'105','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b106','b_demo2',1,'106','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b107','b_demo2',1,'107','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b108','b_demo2',1,'108','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b201','b_demo2',2,'201','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b202','b_demo2',2,'202','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b203','b_demo2',2,'203','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b204','b_demo2',2,'204','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b205','b_demo2',2,'205','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b206','b_demo2',2,'206','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b207','b_demo2',2,'207','พัดลม',250000,500000);
-INSERT INTO rooms (id, building_id, floor, number, room_type, rent, deposit) VALUES ('r_b208','b_demo2',2,'208','พัดลม',250000,500000);
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_000','นภาพร แสงทอง','0886626738','1615505242680');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_000','r_a301','t_000','2026-08-05',390000,780000,780000,780000,192,1422);
-UPDATE rooms SET status='occupied' WHERE id='r_a301';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_001','วรพล อินทรีย์','0895753514','1408828793029');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_001','r_a110','t_001','2025-11-01',350000,700000,700000,700000,380,3916);
-UPDATE rooms SET status='occupied' WHERE id='r_a110';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_002','ปรีชา อินทรีย์','0817999533','1225996925361');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_002','r_a306','t_002','2026-05-10',390000,780000,780000,780000,372,2751);
-UPDATE rooms SET status='occupied' WHERE id='r_a306';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_003','ชัยวัฒน์ ทองคำ','0888592782','1502182356871');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_003','r_b102','t_003','2026-03-01',250000,500000,500000,500000,253,2017);
-UPDATE rooms SET status='occupied' WHERE id='r_b102';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_004','ณัฐพล เกษมสุข','0842762079','1631711757119');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_004','r_a104','t_004','2026-03-01',350000,700000,700000,700000,368,3027);
-UPDATE rooms SET status='occupied' WHERE id='r_a104';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_005','ชัยวัฒน์ เกษมสุข','0870241505','1666956614152');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_005','r_a105','t_005','2025-11-01',350000,700000,700000,700000,160,3096);
-UPDATE rooms SET status='occupied' WHERE id='r_a105';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_006','สุดารัตน์ ศรีสุข','0855909953','1461661581186');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_006','r_a405','t_006','2025-11-01',410000,820000,820000,820000,139,4131);
-UPDATE rooms SET status='occupied' WHERE id='r_a405';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_007','นภาพร อินทรีย์','0852110478','1761670025794');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_007','r_a107','t_007','2026-03-01',350000,700000,700000,700000,354,3375);
-UPDATE rooms SET status='occupied' WHERE id='r_a107';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_008','เอกชัย แสงทอง','0822562241','1300410117846');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_008','r_a304','t_008','2026-05-10',390000,780000,780000,780000,133,1248);
-UPDATE rooms SET status='occupied' WHERE id='r_a304';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_009','อารีย์ เกษมสุข','0851554798','1634139589761');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_009','r_a408','t_009','2026-08-05',410000,820000,820000,820000,328,2165);
-UPDATE rooms SET status='occupied' WHERE id='r_a408';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_010','สุรชัย วัฒนกุล','0899745048','1022965212733');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_010','r_b204','t_010','2026-05-10',250000,500000,500000,500000,281,1688);
-UPDATE rooms SET status='occupied' WHERE id='r_b204';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_011','ปิยะดา แสงทอง','0876262352','1236476408576');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_011','r_a403','t_011','2026-03-01',410000,820000,820000,820000,166,4024);
-UPDATE rooms SET status='occupied' WHERE id='r_a403';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_012','ศิริพร วัฒนกุล','0862472380','1961715402706');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_012','r_a204','t_012','2026-05-10',370000,740000,740000,740000,141,1681);
-UPDATE rooms SET status='occupied' WHERE id='r_a204';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_013','เอกชัย วัฒนกุล','0883744576','1971855918879');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_013','r_a103','t_013','2026-01-15',350000,700000,700000,700000,320,4538);
-UPDATE rooms SET status='occupied' WHERE id='r_a103';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_014','นภาพร รักไทย','0865740154','1395078867786');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_014','r_a106','t_014','2026-08-05',350000,700000,700000,700000,294,4922);
-UPDATE rooms SET status='occupied' WHERE id='r_a106';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_015','ศิริพร ศรีสุข','0821138017','1163965606640');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_015','r_a308','t_015','2026-01-15',390000,780000,780000,780000,219,1049);
-UPDATE rooms SET status='occupied' WHERE id='r_a308';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_016','จันทร์เพ็ญ อินทรีย์','0834473646','1310366133445');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_016','r_a307','t_016','2025-11-01',390000,780000,780000,780000,174,2716);
-UPDATE rooms SET status='occupied' WHERE id='r_a307';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_017','นภาพร พงษ์เจริญ','0891847639','1350324768017');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_017','r_b203','t_017','2026-01-15',250000,500000,500000,500000,363,4892);
-UPDATE rooms SET status='occupied' WHERE id='r_b203';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_018','ปิยะดา ชัยมงคล','0817246803','1989803747933');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_018','r_a206','t_018','2026-08-05',370000,740000,740000,740000,386,2607);
-UPDATE rooms SET status='occupied' WHERE id='r_a206';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_019','ภาณุ วัฒนกุล','0862897893','1528725665836');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_019','r_b205','t_019','2026-08-05',250000,500000,500000,500000,305,1254);
-UPDATE rooms SET status='occupied' WHERE id='r_b205';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_020','กมล แสงทอง','0838019720','1177986137137');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_020','r_a406','t_020','2025-11-01',410000,820000,820000,820000,274,3460);
-UPDATE rooms SET status='occupied' WHERE id='r_a406';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_021','สมหญิง แสงทอง','0810031310','1165643074326');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_021','r_b101','t_021','2026-07-01',250000,500000,500000,500000,151,4886);
-UPDATE rooms SET status='occupied' WHERE id='r_b101';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_022','อรทัย อินทรีย์','0813422671','1958079710109');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_022','r_b106','t_022','2026-01-15',250000,500000,500000,500000,292,1608);
-UPDATE rooms SET status='occupied' WHERE id='r_b106';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_023','กิตติศักดิ์ รักไทย','0856625835','1402018727951');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_023','r_a108','t_023','2026-05-10',350000,700000,700000,700000,162,1472);
-UPDATE rooms SET status='occupied' WHERE id='r_a108';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_024','จันทร์เพ็ญ ทองคำ','0874477539','1341380470411');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_024','r_a205','t_024','2025-11-01',370000,740000,740000,740000,173,1418);
-UPDATE rooms SET status='occupied' WHERE id='r_a205';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_025','อารีย์ พงษ์เจริญ','0845535068','1912588732322');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_025','r_b208','t_025','2026-08-05',250000,500000,500000,500000,182,3114);
-UPDATE rooms SET status='occupied' WHERE id='r_b208';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_026','สมชาย บุญมี','0880901507','1160467504949');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_026','r_a401','t_026','2026-08-05',410000,820000,820000,820000,378,4744);
-UPDATE rooms SET status='occupied' WHERE id='r_a401';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_027','สมชาย สุวรรณ','0850008920','1708577267371');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_027','r_a209','t_027','2025-11-01',370000,740000,740000,740000,233,3123);
-UPDATE rooms SET status='occupied' WHERE id='r_a209';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_028','อรทัย ศรีสุข','0857740731','1248128583958');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_028','r_a102','t_028','2026-07-01',350000,700000,700000,700000,377,4191);
-UPDATE rooms SET status='occupied' WHERE id='r_a102';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_029','ธีรศักดิ์ พงษ์เจริญ','0895421789','1670972854850');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_029','r_a309','t_029','2026-01-15',390000,780000,780000,780000,222,4351);
-UPDATE rooms SET status='occupied' WHERE id='r_a309';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_030','ภาณุ เกษมสุข','0840432459','1567794324273');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_030','r_a410','t_030','2026-05-10',410000,820000,820000,820000,282,3994);
-UPDATE rooms SET status='occupied' WHERE id='r_a410';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_031','สมชาย ใจดี','0847502921','1285496097165');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_031','r_a203','t_031','2026-01-15',370000,740000,740000,740000,276,2831);
-UPDATE rooms SET status='occupied' WHERE id='r_a203';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_032','อรทัย แสงทอง','0839589952','1249546864777');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_032','r_b202','t_032','2026-05-10',250000,500000,500000,500000,200,2383);
-UPDATE rooms SET status='occupied' WHERE id='r_b202';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_033','กมล ทองคำ','0893760773','1992074090276');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_033','r_b105','t_033','2026-07-01',250000,500000,500000,500000,100,2963);
-UPDATE rooms SET status='occupied' WHERE id='r_b105';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_034','กิตติศักดิ์ พงษ์เจริญ','0896319863','1915192154859');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_034','r_b108','t_034','2026-08-05',250000,500000,500000,500000,161,4726);
-UPDATE rooms SET status='occupied' WHERE id='r_b108';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_035','ณัฐพล วัฒนกุล','0895341298','1095917431033');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_035','r_a208','t_035','2026-08-05',370000,740000,740000,740000,302,2897);
-UPDATE rooms SET status='occupied' WHERE id='r_a208';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_036','ปรีชา เกษมสุข','0831321298','1030610396724');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_036','r_a409','t_036','2026-01-15',410000,820000,820000,820000,338,4303);
-UPDATE rooms SET status='occupied' WHERE id='r_a409';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_037','กิตติศักดิ์ ศรีสุข','0892083983','1656384864470');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_037','r_b207','t_037','2026-05-10',250000,500000,500000,500000,279,1638);
-UPDATE rooms SET status='occupied' WHERE id='r_b207';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_038','นภาพร สุวรรณ','0827580355','1012976799922');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_038','r_b104','t_038','2026-08-05',250000,500000,500000,500000,152,3156);
-UPDATE rooms SET status='occupied' WHERE id='r_b104';
-INSERT INTO tenants (id, name, phone, id_card_no) VALUES ('t_039','อารีย์ ศรีสุข','0868224916','1962014904499');
-INSERT INTO contracts (id, room_id, tenant_id, start_date, rent, deposit, deposit_paid, deposit_invoiced, water_start, electric_start) VALUES ('c_039','r_a210','t_039','2026-01-15',370000,740000,740000,740000,208,1114);
-UPDATE rooms SET status='occupied' WHERE id='r_a210';
-INSERT INTO tickets (id, room_id, tenant_id, title, detail, priority, status) VALUES ('k_1','r_a103','t_002','แอร์ไม่เย็น','เปิดแล้วมีแต่ลม ไม่เย็นเลยครับ','urgent','open');
-INSERT INTO tickets (id, room_id, tenant_id, title, detail, priority, status) VALUES ('k_2','r_a205','t_005','ก๊อกน้ำในห้องน้ำรั่ว','น้ำหยดตลอดเวลา','normal','in_progress');
+-- Demo data for local development. Generated; run after migrations.
+--
+--   npm run db:reset
+--
+-- Sign in as  owner@dorm.place  /  dormplace
+--
+-- One operator (tenant), two buildings, twenty rooms, eight leases and a
+-- month of invoices. Money is INTEGER satang throughout.
+
+DELETE FROM payment;
+DELETE FROM invoice_item;
+DELETE FROM invoice;
+DELETE FROM meter_reading;
+DELETE FROM meter_walk;
+DELETE FROM contract_invitation;
+DELETE FROM invitation;
+DELETE FROM ticket;
+DELETE FROM announcement_read;
+DELETE FROM announcement;
+DELETE FROM contract;
+DELETE FROM resident_profile;
+DELETE FROM party;
+DELETE FROM room;
+DELETE FROM building;
+DELETE FROM invoice_counter;
+DELETE FROM membership;
+DELETE FROM role;
+DELETE FROM tenant;
+DELETE FROM session;
+DELETE FROM password_credential;
+DELETE FROM account_identity;
+DELETE FROM audit_event;
+DELETE FROM data_key;
+DELETE FROM account;
+
+-- The owner, and the business they run.
+INSERT INTO account (account_id, display_name, locale, status, created_at, updated_at) VALUES ('01M1D47Z000DT7M1EV8N2FW9P3', 'สมศักดิ์ บ้านสวน', 'th', 'ACTIVE', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO account_identity (identity_id, account_id, provider, provider_scope, external_id, is_primary, created_at) VALUES ('01M1D47Z003GXAQ4HYBR5JZCS6', '01M1D47Z000DT7M1EV8N2FW9P3', 'EMAIL', '_', 'owner@dorm.place', 1, '2026-09-01T00:00:00.000Z');
+INSERT INTO password_credential (account_id, hash, updated_at) VALUES ('01M1D47Z000DT7M1EV8N2FW9P3', 'pbkdf2$100000$ZG9ybXBsYWNlZGVtb3NhbA==$N95/YssX6voOeLxKRETQmqUi8To6rXO+IxSXcM2tApo=', '2026-09-01T00:00:00.000Z');
+INSERT INTO tenant (tenant_id, slug, name, owner_account_id, status, vertical, locale, timezone, currency, data_region, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', 'baan-suan-demo', 'บ้านสวน พร็อพเพอร์ตี้', '01M1D47Z000DT7M1EV8N2FW9P3', 'ACTIVE', 'DORM', 'th', 'Asia/Bangkok', 'THB', 'auto', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- The three preset roles. Permissions are a JSON array, never a string on membership.
+INSERT INTO role (tenant_id, role_id, key, name, permissions, is_system, rank, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00EV8N2FW9P3GXAQ4H', 'OWNER', 'เจ้าของกิจการ', '["tenant.read","tenant.update","tenant.terminate","tenant.transfer_owner","staff.read","staff.invite","staff.update_role","staff.suspend","staff.remove","client.read","client.invite","client.update","client.suspend","client.release","client.ban","client.export","invitation.read","invitation.create","invitation.revoke","audit.read","data.export","billing.read","billing.manage","app.building.read","app.building.manage","app.room.read","app.room.manage","app.resident.read","app.resident.manage","app.resident.pii_view","app.contract.read","app.contract.create","app.contract.amend","app.contract.end","app.meter.read","app.meter.record","app.meter.correct","app.billing.generate","app.invoice.read","app.invoice.void","app.payment.record","app.payment.verify","app.ticket.read","app.ticket.manage","app.announcement.read","app.announcement.publish","app.report.read","app.report.export"]', 1, 100, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO role (tenant_id, role_id, key, name, permissions, is_system, rank, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00N2FW9P3GXAQ4HYBR', 'MANAGER', 'ผู้จัดการ', '["tenant.read","staff.read","client.read","app.building.read","app.room.read","app.room.manage","app.resident.read","app.resident.manage","app.contract.read","app.contract.create","app.meter.read","app.meter.record","app.billing.generate","app.invoice.read","app.payment.record","app.payment.verify","app.ticket.read","app.ticket.manage","app.announcement.read","app.announcement.publish","app.report.read"]', 1, 50, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO role (tenant_id, role_id, key, name, permissions, is_system, rank, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00W9P3GXAQ4HYBR5JZ', 'ADMIN', 'พนักงานหน้าเคาน์เตอร์', '["tenant.read","client.read","app.building.read","app.room.read","app.resident.read","app.contract.read","app.meter.read","app.meter.record","app.invoice.read","app.payment.record","app.ticket.read","app.ticket.manage","app.announcement.read"]', 1, 10, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO membership (tenant_id, membership_id, account_id, kind, status, role_id, joined_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00AQ4HYBR5JZCS6K0D', '01M1D47Z000DT7M1EV8N2FW9P3', 'STAFF', 'ACTIVE', '01M1D47Z00EV8N2FW9P3GXAQ4H', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- Two buildings under one operator, which is the case the old schema could not hold.
+INSERT INTO building (tenant_id, building_id, name, address, tax_id, promptpay_id, promptpay_name, water_rate, water_mode, water_flat, electric_rate, electric_mode, electric_flat, common_fee, late_fee_daily, due_day, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00HYBR5JZCS6K0DT7M', 'บ้านสวนอพาร์ทเมนท์', '99/9 ถ.พหลโยธิน จตุจักร กรุงเทพฯ 10900', '0105551234567', '0812345678', 'นายสมศักดิ์ บ้านสวน', 1800, 'meter', 0, 800, 'meter', 0, 20000, 5000, 5, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO building (tenant_id, building_id, name, address, promptpay_id, promptpay_name, water_rate, water_mode, water_flat, electric_rate, electric_mode, electric_flat, common_fee, late_fee_daily, due_day, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00R5JZCS6K0DT7M1EV', 'หอพักนักศึกษา ริมคลอง', '12 ซ.รังสิต-นครนายก 12 ปทุมธานี 12110', '0898765432', 'น.ส.มาลี ริมคลอง', 0, 'flat', 15000, 700, 'meter', 0, 0, 0, 5, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- Rooms.
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00ZCS6K0DT7M1EV8N2', '01M1D47Z00HYBR5JZCS6K0DT7M', 1, '101', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z006K0DT7M1EV8N2FW9', '01M1D47Z00HYBR5JZCS6K0DT7M', 1, '102', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00DT7M1EV8N2FW9P3G', '01M1D47Z00HYBR5JZCS6K0DT7M', 1, '103', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00M1EV8N2FW9P3GXAQ', '01M1D47Z00HYBR5JZCS6K0DT7M', 1, '104', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00V8N2FW9P3GXAQ4HY', '01M1D47Z00HYBR5JZCS6K0DT7M', 1, '105', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z002FW9P3GXAQ4HYBR5', '01M1D47Z00HYBR5JZCS6K0DT7M', 1, '106', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z009P3GXAQ4HYBR5JZC', '01M1D47Z00HYBR5JZCS6K0DT7M', 2, '201', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00GXAQ4HYBR5JZCS6K', '01M1D47Z00HYBR5JZCS6K0DT7M', 2, '202', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00Q4HYBR5JZCS6K0DT', '01M1D47Z00HYBR5JZCS6K0DT7M', 2, '203', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00YBR5JZCS6K0DT7M1', '01M1D47Z00HYBR5JZCS6K0DT7M', 2, '204', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z005JZCS6K0DT7M1EV8', '01M1D47Z00HYBR5JZCS6K0DT7M', 2, '205', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00CS6K0DT7M1EV8N2F', '01M1D47Z00HYBR5JZCS6K0DT7M', 2, '206', 'พัดลม', 350000, 700000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00K0DT7M1EV8N2FW9P', '01M1D47Z00R5JZCS6K0DT7M1EV', 1, '101', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00T7M1EV8N2FW9P3GX', '01M1D47Z00R5JZCS6K0DT7M1EV', 1, '102', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z001EV8N2FW9P3GXAQ4', '01M1D47Z00R5JZCS6K0DT7M1EV', 1, '103', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z008N2FW9P3GXAQ4HYB', '01M1D47Z00R5JZCS6K0DT7M1EV', 1, '104', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00FW9P3GXAQ4HYBR5J', '01M1D47Z00R5JZCS6K0DT7M1EV', 2, '201', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00P3GXAQ4HYBR5JZCS', '01M1D47Z00R5JZCS6K0DT7M1EV', 2, '202', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00XAQ4HYBR5JZCS6K0', '01M1D47Z00R5JZCS6K0DT7M1EV', 2, '203', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO room (tenant_id, room_id, building_id, floor, number, room_type, rent, deposit, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z004HYBR5JZCS6K0DT7', '01M1D47Z00R5JZCS6K0DT7M1EV', 2, '204', 'แอร์', 280000, 560000, 'VACANT', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- Residents. A PARTY, not a membership: none of them has opened the app yet.
+-- Phones are masked here; the encrypted columns need the runtime key, so a
+-- seed cannot fill them and does not pretend to.
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00BR5JZCS6K0DT7M1E', 'PRIMARY', 'สมชาย ใจดี', '08x-xxx-1000', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00JZCS6K0DT7M1EV8N', 'PRIMARY', 'มาลี รักเรียน', '08x-xxx-1111', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z00S6K0DT7M1EV8N2FW', 'PRIMARY', 'ประเสริฐ ตั้งใจ', '08x-xxx-1222', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z010DT7M1EV8N2FW9P3', 'PRIMARY', 'วิภา สุขสันต์', '08x-xxx-1333', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z017M1EV8N2FW9P3GXA', 'PRIMARY', 'อนันต์ มั่นคง', '08x-xxx-1444', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01EV8N2FW9P3GXAQ4H', 'PRIMARY', 'กนกวรรณ ศรีสุข', '08x-xxx-1555', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01N2FW9P3GXAQ4HYBR', 'PRIMARY', 'ธนา พูนทรัพย์', '08x-xxx-1666', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO party (tenant_id, party_id, kind, display_name, phone_masked, created_by, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01W9P3GXAQ4HYBR5JZ', 'PRIMARY', 'ปิยะ วงศ์ไทย', '08x-xxx-1777', 'STAFF', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- Live leases. The room follows the lease, not the other way round.
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z013GXAQ4HYBR5JZCS6', '01M1D47Z00ZCS6K0DT7M1EV8N2', '01M1D47Z00BR5JZCS6K0DT7M1E', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 100, 2000, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z00ZCS6K0DT7M1EV8N2';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01AQ4HYBR5JZCS6K0D', '01M1D47Z006K0DT7M1EV8N2FW9', '01M1D47Z00JZCS6K0DT7M1EV8N', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 101, 2010, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z006K0DT7M1EV8N2FW9';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01HYBR5JZCS6K0DT7M', '01M1D47Z00DT7M1EV8N2FW9P3G', '01M1D47Z00S6K0DT7M1EV8N2FW', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 102, 2020, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z00DT7M1EV8N2FW9P3G';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01R5JZCS6K0DT7M1EV', '01M1D47Z00M1EV8N2FW9P3GXAQ', '01M1D47Z010DT7M1EV8N2FW9P3', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 103, 2030, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z00M1EV8N2FW9P3GXAQ';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01ZCS6K0DT7M1EV8N2', '01M1D47Z00V8N2FW9P3GXAQ4HY', '01M1D47Z017M1EV8N2FW9P3GXA', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 104, 2040, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z00V8N2FW9P3GXAQ4HY';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z016K0DT7M1EV8N2FW9', '01M1D47Z002FW9P3GXAQ4HYBR5', '01M1D47Z01EV8N2FW9P3GXAQ4H', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 105, 2050, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z002FW9P3GXAQ4HYBR5';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01DT7M1EV8N2FW9P3G', '01M1D47Z009P3GXAQ4HYBR5JZC', '01M1D47Z01N2FW9P3GXAQ4HYBR', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 106, 2060, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z009P3GXAQ4HYBR5JZC';
+INSERT INTO contract (tenant_id, contract_id, room_id, party_id, start_date, billing_cycle, rent, deposit, deposit_paid, deposit_invoiced, deposit_returned, water_start, electric_start, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01M1EV8N2FW9P3GXAQ', '01M1D47Z00GXAQ4HYBR5JZCS6K', '01M1D47Z01W9P3GXAQ4HYBR5JZ', '2026-07-01', 'MONTHLY', 350000, 700000, 700000, 700000, 0, 107, 2070, 'ACTIVE', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+UPDATE room SET status = 'OCCUPIED' WHERE tenant_id = '01M1D47Z007M1EV8N2FW9P3GXA' AND room_id = '01M1D47Z00GXAQ4HYBR5JZCS6K';
+
+-- August readings, so the September billing run has something to work from.
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01V8N2FW9P3GXAQ4HY', '01M1D47Z00ZCS6K0DT7M1EV8N2', '01M1D47Z013GXAQ4HYBR5JZCS6', '2026-08', 'WATER', 100, 108, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z012FW9P3GXAQ4HYBR5', '01M1D47Z00ZCS6K0DT7M1EV8N2', '01M1D47Z013GXAQ4HYBR5JZCS6', '2026-08', 'ELECTRIC', 2000, 2090, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z019P3GXAQ4HYBR5JZC', '01M1D47Z006K0DT7M1EV8N2FW9', '01M1D47Z01AQ4HYBR5JZCS6K0D', '2026-08', 'WATER', 101, 110, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01GXAQ4HYBR5JZCS6K', '01M1D47Z006K0DT7M1EV8N2FW9', '01M1D47Z01AQ4HYBR5JZCS6K0D', '2026-08', 'ELECTRIC', 2010, 2110, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01Q4HYBR5JZCS6K0DT', '01M1D47Z00DT7M1EV8N2FW9P3G', '01M1D47Z01HYBR5JZCS6K0DT7M', '2026-08', 'WATER', 102, 112, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01YBR5JZCS6K0DT7M1', '01M1D47Z00DT7M1EV8N2FW9P3G', '01M1D47Z01HYBR5JZCS6K0DT7M', '2026-08', 'ELECTRIC', 2020, 2130, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z015JZCS6K0DT7M1EV8', '01M1D47Z00M1EV8N2FW9P3GXAQ', '01M1D47Z01R5JZCS6K0DT7M1EV', '2026-08', 'WATER', 103, 114, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01CS6K0DT7M1EV8N2F', '01M1D47Z00M1EV8N2FW9P3GXAQ', '01M1D47Z01R5JZCS6K0DT7M1EV', '2026-08', 'ELECTRIC', 2030, 2150, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01K0DT7M1EV8N2FW9P', '01M1D47Z00V8N2FW9P3GXAQ4HY', '01M1D47Z01ZCS6K0DT7M1EV8N2', '2026-08', 'WATER', 104, 116, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01T7M1EV8N2FW9P3GX', '01M1D47Z00V8N2FW9P3GXAQ4HY', '01M1D47Z01ZCS6K0DT7M1EV8N2', '2026-08', 'ELECTRIC', 2040, 2170, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z011EV8N2FW9P3GXAQ4', '01M1D47Z002FW9P3GXAQ4HYBR5', '01M1D47Z016K0DT7M1EV8N2FW9', '2026-08', 'WATER', 105, 113, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z018N2FW9P3GXAQ4HYB', '01M1D47Z002FW9P3GXAQ4HYBR5', '01M1D47Z016K0DT7M1EV8N2FW9', '2026-08', 'ELECTRIC', 2050, 2190, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01FW9P3GXAQ4HYBR5J', '01M1D47Z009P3GXAQ4HYBR5JZC', '01M1D47Z01DT7M1EV8N2FW9P3G', '2026-08', 'WATER', 106, 115, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01P3GXAQ4HYBR5JZCS', '01M1D47Z009P3GXAQ4HYBR5JZC', '01M1D47Z01DT7M1EV8N2FW9P3G', '2026-08', 'ELECTRIC', 2060, 2210, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01XAQ4HYBR5JZCS6K0', '01M1D47Z00GXAQ4HYBR5JZCS6K', '01M1D47Z01M1EV8N2FW9P3GXAQ', '2026-08', 'WATER', 107, 117, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO meter_reading (tenant_id, reading_id, room_id, contract_id, period, kind, prev_value, value, status, recorded_by, recorded_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z014HYBR5JZCS6K0DT7', '01M1D47Z00GXAQ4HYBR5JZCS6K', '01M1D47Z01M1EV8N2FW9P3GXAQ', '2026-08', 'ELECTRIC', 2070, 2160, 'RECORDED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- August invoices. paid_total is not a column: a balance is derived from
+-- verified payments, so the first four are settled and the rest are not.
+INSERT INTO invoice_counter (tenant_id, key, value, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', 'invoice:2026-08', 8, '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01BR5JZCS6K0DT7M1E', 'INV-2026-08-0001', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z00ZCS6K0DT7M1EV8N2', '01M1D47Z013GXAQ4HYBR5JZCS6', '01M1D47Z00BR5JZCS6K0DT7M1E', '2026-08', '2026-08-01', '2026-09-05', 456400, 0, 456400, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01JZCS6K0DT7M1EV8N', '01M1D47Z01BR5JZCS6K0DT7M1E', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z01S6K0DT7M1EV8N2FW', '01M1D47Z01BR5JZCS6K0DT7M1E', 'WATER', 'ค่าน้ำประปา', NULL, 8, 'หน่วย', 1800, 14400, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z020DT7M1EV8N2FW9P3', '01M1D47Z01BR5JZCS6K0DT7M1E', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 90, 'หน่วย', 800, 72000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z027M1EV8N2FW9P3GXA', '01M1D47Z01BR5JZCS6K0DT7M1E', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO payment (tenant_id, payment_id, invoice_id, amount, paid_at, method, status, verified_by, verified_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02EV8N2FW9P3GXAQ4H', '01M1D47Z01BR5JZCS6K0DT7M1E', 456400, '2026-09-02', 'PROMPTPAY', 'VERIFIED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02N2FW9P3GXAQ4HYBR', 'INV-2026-08-0002', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z006K0DT7M1EV8N2FW9', '01M1D47Z01AQ4HYBR5JZCS6K0D', '01M1D47Z00JZCS6K0DT7M1EV8N', '2026-08', '2026-08-01', '2026-09-05', 466200, 0, 466200, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02W9P3GXAQ4HYBR5JZ', '01M1D47Z02N2FW9P3GXAQ4HYBR', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z023GXAQ4HYBR5JZCS6', '01M1D47Z02N2FW9P3GXAQ4HYBR', 'WATER', 'ค่าน้ำประปา', NULL, 9, 'หน่วย', 1800, 16200, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02AQ4HYBR5JZCS6K0D', '01M1D47Z02N2FW9P3GXAQ4HYBR', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 100, 'หน่วย', 800, 80000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02HYBR5JZCS6K0DT7M', '01M1D47Z02N2FW9P3GXAQ4HYBR', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO payment (tenant_id, payment_id, invoice_id, amount, paid_at, method, status, verified_by, verified_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02R5JZCS6K0DT7M1EV', '01M1D47Z02N2FW9P3GXAQ4HYBR', 466200, '2026-09-02', 'PROMPTPAY', 'VERIFIED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02ZCS6K0DT7M1EV8N2', 'INV-2026-08-0003', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z00DT7M1EV8N2FW9P3G', '01M1D47Z01HYBR5JZCS6K0DT7M', '01M1D47Z00S6K0DT7M1EV8N2FW', '2026-08', '2026-08-01', '2026-09-05', 476000, 0, 476000, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z026K0DT7M1EV8N2FW9', '01M1D47Z02ZCS6K0DT7M1EV8N2', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02DT7M1EV8N2FW9P3G', '01M1D47Z02ZCS6K0DT7M1EV8N2', 'WATER', 'ค่าน้ำประปา', NULL, 10, 'หน่วย', 1800, 18000, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02M1EV8N2FW9P3GXAQ', '01M1D47Z02ZCS6K0DT7M1EV8N2', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 110, 'หน่วย', 800, 88000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02V8N2FW9P3GXAQ4HY', '01M1D47Z02ZCS6K0DT7M1EV8N2', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO payment (tenant_id, payment_id, invoice_id, amount, paid_at, method, status, verified_by, verified_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z022FW9P3GXAQ4HYBR5', '01M1D47Z02ZCS6K0DT7M1EV8N2', 476000, '2026-09-02', 'PROMPTPAY', 'VERIFIED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z029P3GXAQ4HYBR5JZC', 'INV-2026-08-0004', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z00M1EV8N2FW9P3GXAQ', '01M1D47Z01R5JZCS6K0DT7M1EV', '01M1D47Z010DT7M1EV8N2FW9P3', '2026-08', '2026-08-01', '2026-09-05', 485800, 0, 485800, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02GXAQ4HYBR5JZCS6K', '01M1D47Z029P3GXAQ4HYBR5JZC', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02Q4HYBR5JZCS6K0DT', '01M1D47Z029P3GXAQ4HYBR5JZC', 'WATER', 'ค่าน้ำประปา', NULL, 11, 'หน่วย', 1800, 19800, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02YBR5JZCS6K0DT7M1', '01M1D47Z029P3GXAQ4HYBR5JZC', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 120, 'หน่วย', 800, 96000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z025JZCS6K0DT7M1EV8', '01M1D47Z029P3GXAQ4HYBR5JZC', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO payment (tenant_id, payment_id, invoice_id, amount, paid_at, method, status, verified_by, verified_at, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02CS6K0DT7M1EV8N2F', '01M1D47Z029P3GXAQ4HYBR5JZC', 485800, '2026-09-02', 'PROMPTPAY', 'VERIFIED', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02K0DT7M1EV8N2FW9P', 'INV-2026-08-0005', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z00V8N2FW9P3GXAQ4HY', '01M1D47Z01ZCS6K0DT7M1EV8N2', '01M1D47Z017M1EV8N2FW9P3GXA', '2026-08', '2026-08-01', '2026-09-05', 495600, 0, 495600, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02T7M1EV8N2FW9P3GX', '01M1D47Z02K0DT7M1EV8N2FW9P', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z021EV8N2FW9P3GXAQ4', '01M1D47Z02K0DT7M1EV8N2FW9P', 'WATER', 'ค่าน้ำประปา', NULL, 12, 'หน่วย', 1800, 21600, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z028N2FW9P3GXAQ4HYB', '01M1D47Z02K0DT7M1EV8N2FW9P', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 130, 'หน่วย', 800, 104000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02FW9P3GXAQ4HYBR5J', '01M1D47Z02K0DT7M1EV8N2FW9P', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+-- Reported but not yet accepted: it must not reduce the balance.
+INSERT INTO payment (tenant_id, payment_id, invoice_id, amount, paid_at, method, ref, status, idempotency_key, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02P3GXAQ4HYBR5JZCS', '01M1D47Z02K0DT7M1EV8N2FW9P', 495600, '2026-09-03', 'PROMPTPAY', 'demo-slip', 'REPORTED', 'demo-4', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02XAQ4HYBR5JZCS6K0', 'INV-2026-08-0006', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z002FW9P3GXAQ4HYBR5', '01M1D47Z016K0DT7M1EV8N2FW9', '01M1D47Z01EV8N2FW9P3GXAQ4H', '2026-08', '2026-08-01', '2026-09-05', 496400, 0, 496400, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z024HYBR5JZCS6K0DT7', '01M1D47Z02XAQ4HYBR5JZCS6K0', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02BR5JZCS6K0DT7M1E', '01M1D47Z02XAQ4HYBR5JZCS6K0', 'WATER', 'ค่าน้ำประปา', NULL, 8, 'หน่วย', 1800, 14400, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02JZCS6K0DT7M1EV8N', '01M1D47Z02XAQ4HYBR5JZCS6K0', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 140, 'หน่วย', 800, 112000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z02S6K0DT7M1EV8N2FW', '01M1D47Z02XAQ4HYBR5JZCS6K0', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z030DT7M1EV8N2FW9P3', 'INV-2026-08-0007', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z009P3GXAQ4HYBR5JZC', '01M1D47Z01DT7M1EV8N2FW9P3G', '01M1D47Z01N2FW9P3GXAQ4HYBR', '2026-08', '2026-08-01', '2026-09-05', 506200, 0, 506200, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z037M1EV8N2FW9P3GXA', '01M1D47Z030DT7M1EV8N2FW9P3', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03EV8N2FW9P3GXAQ4H', '01M1D47Z030DT7M1EV8N2FW9P3', 'WATER', 'ค่าน้ำประปา', NULL, 9, 'หน่วย', 1800, 16200, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03N2FW9P3GXAQ4HYBR', '01M1D47Z030DT7M1EV8N2FW9P3', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 150, 'หน่วย', 800, 120000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03W9P3GXAQ4HYBR5JZ', '01M1D47Z030DT7M1EV8N2FW9P3', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice (tenant_id, invoice_id, number, building_id, room_id, contract_id, party_id, period, issue_date, due_date, subtotal, discount, total, status, version, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z033GXAQ4HYBR5JZCS6', 'INV-2026-08-0008', '01M1D47Z00HYBR5JZCS6K0DT7M', '01M1D47Z00GXAQ4HYBR5JZCS6K', '01M1D47Z01M1EV8N2FW9P3GXAQ', '01M1D47Z01W9P3GXAQ4HYBR5JZ', '2026-08', '2026-08-01', '2026-09-05', 460000, 0, 460000, 'UNPAID', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03AQ4HYBR5JZCS6K0D', '01M1D47Z033GXAQ4HYBR5JZCS6', 'RENT', 'ค่าเช่าห้อง', NULL, 1, 'เดือน', 350000, 350000, 0, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03HYBR5JZCS6K0DT7M', '01M1D47Z033GXAQ4HYBR5JZCS6', 'WATER', 'ค่าน้ำประปา', NULL, 10, 'หน่วย', 1800, 18000, 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03R5JZCS6K0DT7M1EV', '01M1D47Z033GXAQ4HYBR5JZCS6', 'ELECTRIC', 'ค่าไฟฟ้า', NULL, 90, 'หน่วย', 800, 72000, 2, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO invoice_item (tenant_id, item_id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03ZCS6K0DT7M1EV8N2', '01M1D47Z033GXAQ4HYBR5JZCS6', 'COMMON', 'ค่าส่วนกลาง', NULL, 1, 'เดือน', 20000, 20000, 3, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+
+-- A couple of open repairs and a notice on the board.
+INSERT INTO ticket (tenant_id, ticket_id, room_id, party_id, title, detail, priority, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z036K0DT7M1EV8N2FW9', '01M1D47Z006K0DT7M1EV8N2FW9', '01M1D47Z00JZCS6K0DT7M1EV8N', 'แอร์ไม่เย็น', 'เปิดแล้วมีแต่ลม', 'NORMAL', 'OPEN', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO ticket (tenant_id, ticket_id, room_id, party_id, title, priority, status, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03DT7M1EV8N2FW9P3G', '01M1D47Z00M1EV8N2FW9P3GXAQ', '01M1D47Z010DT7M1EV8N2FW9P3', 'น้ำรั่วใต้อ่าง', 'URGENT', 'IN_PROGRESS', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+INSERT INTO announcement (tenant_id, announcement_id, building_id, title, body, pinned, published_at, created_by, created_at, updated_at) VALUES ('01M1D47Z007M1EV8N2FW9P3GXA', '01M1D47Z03M1EV8N2FW9P3GXAQ', '01M1D47Z00HYBR5JZCS6K0DT7M', 'แจ้งหยุดจ่ายน้ำชั่วคราว', 'วันเสาร์ที่ 12 กันยายน เวลา 09:00–15:00 การประปาจะปิดซ่อมท่อเมนครับ', 1, '2026-09-01T00:00:00.000Z', '01M1D47Z000DT7M1EV8N2FW9P3', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+

@@ -1,63 +1,66 @@
-import { back, page, route } from '../app';
+import { back, page, requirePermission, route } from '../app';
 import { Empty, Icon, Kpi, Layout, PageHead, RailStat } from '../ui/layout';
-import { baht, currentPeriod, id, periodBounds, str, thaiPeriod, today } from '../lib/util';
+import { baht, currentPeriod, periodBounds, str, thaiPeriod, today } from '../lib/util';
 import { buildDraft, dueDateFor, invoiceNumber, isBillable, type Draft } from '../lib/billing';
-import type { Contract, MeterReading, Room } from '../types';
+import type { Contract, MeterReading, Room } from '../repo/types';
 import type { Ctx } from '../app';
 import type { T } from '../lib/i18n';
 
 const app = route();
 
 interface Candidate {
-  contract: Contract;
+  contract: Contract & { party_name: string };
   room: Room;
   tenantName: string;
   draft: Draft;
   existingInvoiceId: string | null;
 }
 
-/** Collects everything billable for a building/period and computes each draft. */
+/**
+ * Collects everything billable for a building and period, and computes each
+ * draft without writing anything.
+ *
+ * Nothing here decides money on its own: it gathers the leases, the readings
+ * and the invoices that already exist, and `buildDraft` turns those into lines.
+ * A lease already invoiced for the period keeps its invoice id, which is how
+ * re-running a billing run is safe.
+ */
 async function collect(c: Ctx, buildingId: string, period: string): Promise<Candidate[]> {
-  const db = c.get('db');
-  const building = await db.building(buildingId);
-  if (!building) return [];
+  const tctx = c.get('tctx');
+  const repos = c.get('repos');
+  const building = await repos.buildings.byId(tctx, buildingId);
 
-  const [contracts, readings, existing] = await Promise.all([
-    db.all<Contract & { tenant_name: string }>(
-      `SELECT ct.*, t.name AS tenant_name
-         FROM contracts ct
-         JOIN rooms r ON r.id = ct.room_id
-         JOIN tenants t ON t.id = ct.tenant_id
-        WHERE r.building_id = ?`,
-      buildingId,
-    ),
-    db.readingsForPeriod(buildingId, period),
-    db.all<{ id: string; contract_id: string }>(
-      'SELECT id, contract_id FROM invoices WHERE period = ? AND building_id = ?', period, buildingId,
-    ),
+  const [contracts, readings, existing, roomList] = await Promise.all([
+    repos.contracts.forBuilding(tctx, buildingId),
+    repos.meterReadings.forPeriod(tctx, buildingId, period),
+    repos.invoices.rows(tctx, { period, buildingId }),
+    repos.rooms.forBuilding(tctx, buildingId),
   ]);
 
-  const rooms = new Map((await db.rooms(buildingId)).map((r) => [r.id, r]));
+  const rooms = new Map(roomList.map((r) => [r.room_id, r]));
   const byRoom = new Map<string, { water?: MeterReading; electric?: MeterReading }>();
   for (const m of readings) {
     const slot = byRoom.get(m.room_id) ?? {};
-    slot[m.kind] = m;
+    if (m.kind === 'WATER') slot.water = m; else slot.electric = m;
     byRoom.set(m.room_id, slot);
   }
-  const invoiced = new Map(existing.map((e) => [e.contract_id, e.id]));
+  // A voided invoice does not count as billed: the period still needs one.
+  const invoiced = new Map(
+    existing.filter((e) => e.status !== 'VOID').map((e) => [e.contract_id, e.invoice_id]),
+  );
 
   const out: Candidate[] = [];
   for (const contract of contracts) {
     if (!isBillable(contract, period)) continue;
     const room = rooms.get(contract.room_id);
     if (!room) continue;
-    const meters = byRoom.get(room.id) ?? {};
+    const meters = byRoom.get(room.room_id) ?? {};
     out.push({
       contract,
       room,
-      tenantName: contract.tenant_name,
+      tenantName: contract.party_name,
       draft: buildDraft({ building, room, contract, water: meters.water, electric: meters.electric }, period),
-      existingInvoiceId: invoiced.get(contract.id) ?? null,
+      existingInvoiceId: invoiced.get(contract.contract_id) ?? null,
     });
   }
   out.sort((a, b) => a.room.floor - b.room.floor || a.room.number.localeCompare(b.room.number, 'th'));
@@ -83,15 +86,16 @@ function Steps({ t, at }: { t: T; at: number }) {
 }
 
 app.get('/billing', async (c) => {
-  const db = c.get('db');
   const t = c.get('t');
-  const buildings = await db.buildings();
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.billing.generate');
+  const buildings = await c.get('repos').buildings.all(tctx);
   if (buildings.length === 0) return back(c, '/buildings/new', 'no_building', true);
-  const buildingId = c.req.query('building') || buildings[0].id;
-  const building = buildings.find((b) => b.id === buildingId) ?? buildings[0];
+  const buildingId = c.req.query('building') || buildings[0].building_id;
+  const building = buildings.find((b) => b.building_id === buildingId) ?? buildings[0];
   const period = c.req.query('period') || currentPeriod();
 
-  const rows = await collect(c, building.id, period);
+  const rows = await collect(c, building.building_id, period);
   const pending = rows.filter((r) => !r.existingInvoiceId);
   const total = pending.reduce((s, r) => s + r.draft.subtotal, 0);
   const withWarnings = pending.filter((r) => r.draft.warnings.length > 0).length;
@@ -114,7 +118,7 @@ app.get('/billing', async (c) => {
         ) : (
           <div class="att">
             {pending.filter((r) => r.draft.warnings.length).slice(0, 8).map((r) => (
-              <a class="att-row" href={`/meters?building=${building.id}&period=${period}`}>
+              <a class="att-row" href={`/meters?building=${building.building_id}&period=${period}`}>
                 <span class="dot warn" aria-hidden="true">{Icon.gauge({ size: 14 })}</span>
                 <span class="txt">
                   <b>{t('room.number')} {r.room.number}</b>
@@ -134,12 +138,12 @@ app.get('/billing', async (c) => {
       <PageHead title={t('billing.title')} sub={`${building.name} · ${thaiPeriod(period)}`}>
         <form method="get" action="/billing" class="btn-row">
           <select name="building" aria-label={t('building.name')}>
-            {buildings.map((b) => <option value={b.id} selected={b.id === building.id}>{b.name}</option>)}
+            {buildings.map((b) => <option value={b.building_id} selected={b.building_id === building.building_id}>{b.name}</option>)}
           </select>
           <input type="month" name="period" value={period} aria-label={t('meter.period')} />
           <button class="btn" type="submit">{t('billing.preview')}</button>
         </form>
-        <a class="btn" href={`/meters?building=${building.id}&period=${period}`}>
+        <a class="btn" href={`/meters?building=${building.building_id}&period=${period}`}>
           <span aria-hidden="true">{Icon.gauge({ size: 16 })}</span>{t('nav.meters')}
         </a>
       </PageHead>
@@ -157,14 +161,14 @@ app.get('/billing', async (c) => {
           <div class="hs"><div class="n">฿{baht(total)}</div><div class="l">{t('invoice.total')}</div></div>
         </div>
         <form method="post" action="/billing" class="btn-row">
-          <input type="hidden" name="building_id" value={building.id} />
+          <input type="hidden" name="building_id" value={building.building_id} />
           <input type="hidden" name="period" value={period} />
           <button class="btn on-hero lg" type="submit" disabled={pending.length === 0}>
             {t('billing.generate')} ({pending.length})
             <span aria-hidden="true">{Icon.arrowRight({ size: 16 })}</span>
           </button>
           {withWarnings > 0
-            ? <a class="btn ghost-hero lg" href={`/meters?building=${building.id}&period=${period}`}>{t('dash.enter_meters')}</a>
+            ? <a class="btn ghost-hero lg" href={`/meters?building=${building.building_id}&period=${period}`}>{t('dash.enter_meters')}</a>
             : null}
         </form>
       </section>
@@ -236,49 +240,43 @@ app.get('/billing', async (c) => {
 });
 
 app.post('/billing', async (c) => {
-  const db = c.get('db');
+  const tctx = c.get('tctx');
+  requirePermission(tctx, 'app.billing.generate');
+  const repos = c.get('repos');
   const f = await c.req.formData();
   const buildingId = str(f.get('building_id'));
   const period = str(f.get('period'));
   if (!buildingId || !period) return back(c, '/billing', 'missing', true);
 
-  const building = await db.building(buildingId);
-  if (!building) return c.notFound();
-
-  const rows = (await collect(c, buildingId, period)).filter((r) => !r.existingInvoiceId && r.draft.items.length > 0);
+  const building = await repos.buildings.byId(tctx, buildingId);
+  const rows = (await collect(c, buildingId, period))
+    .filter((r) => !r.existingInvoiceId && r.draft.items.length > 0);
   if (rows.length === 0) return back(c, `/billing?building=${buildingId}&period=${period}`, 'nothing_to_bill', true);
 
   const issueDate = today();
   const dueDate = dueDateFor(period, building.due_day);
-  const stmts: D1PreparedStatement[] = [];
 
+  // Numbers are drawn before the batch: the counter is a write of its own, and
+  // per-tenant, so two operators billing at once cannot take the same one.
+  const runs = [];
   for (const r of rows) {
-    const seq = await db.nextSeq(`invoice:${period}`);
-    const invId = id('i_');
-    stmts.push(db.prep(
-      `INSERT INTO invoices (id, number, building_id, room_id, contract_id, tenant_id, period,
-         issue_date, due_date, subtotal, discount, total, status)
-       VALUES (?,?,?,?,?,?,?,?,?,?,0,?,'unpaid')`,
-      invId, invoiceNumber(period, seq), buildingId, r.room.id, r.contract.id, r.contract.tenant_id,
-      period, issueDate, dueDate, r.draft.subtotal, r.draft.subtotal,
-    ));
-    r.draft.items.forEach((it, idx) => {
-      stmts.push(db.prep(
-        `INSERT INTO invoice_items (id, invoice_id, kind, label, detail, qty, unit, unit_price, amount, sort)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        id('it_'), invId, it.kind, it.label, it.detail, it.qty, it.unit, it.unit_price, it.amount, idx,
-      ));
+    const seq = await repos.counters.next(tctx, `invoice:${period}`);
+    runs.push({
+      number: invoiceNumber(period, seq),
+      buildingId,
+      roomId: r.room.room_id,
+      contractId: r.contract.contract_id,
+      partyId: r.contract.party_id,
+      period,
+      issueDate,
+      dueDate,
+      total: r.draft.subtotal,
+      items: r.draft.items,
+      depositAmount: r.draft.items.find((i) => i.kind === 'DEPOSIT')?.amount ?? 0,
     });
-    // Mark the deposit as invoiced so a later run never bills it twice.
-    const dep = r.draft.items.find((i) => i.kind === 'deposit');
-    if (dep) {
-      stmts.push(db.prep(
-        'UPDATE contracts SET deposit_invoiced = deposit_invoiced + ? WHERE id = ?', dep.amount, r.contract.id,
-      ));
-    }
   }
 
-  await db.batch(stmts);
+  await repos.invoices.generate(tctx, runs);
   return back(c, `/invoices?period=${period}&building=${buildingId}`, 'billed');
 });
 

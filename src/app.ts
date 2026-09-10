@@ -1,17 +1,43 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import type { Db } from './lib/db';
 import type { Locale, T } from './lib/i18n';
-import type { User } from './types';
+import type { TenantContext } from './lib/tenant-context';
+import type { Account, MembershipSummary } from './repo/identity';
+import type { IdentityRepo } from './repo/identity';
+import type { Repos } from './repo';
 
 export type AppEnv = {
   Bindings: Env;
-  Variables: { db: Db; t: T; locale: Locale; user: User };
+  Variables: {
+    t: T;
+    locale: Locale;
+    /** Global tables: accounts, sessions, provisioning. No tenant scope. */
+    identity: IdentityRepo;
+    /** Everything tenant-scoped. Every call takes `tctx` as its first argument. */
+    repos: Repos;
+    /** The signed-in person. */
+    account: Account;
+    /**
+     * The resolved tenant. Built server-side from membership and immutable for
+     * the request — see `src/repo/identity.ts` resolve(). Nothing else may
+     * construct one, and no route may read a tenant_id from anywhere else.
+     */
+    tctx: TenantContext;
+    /** Every tenant this account can act in. Always an array (STANDARD §9.4). */
+    memberships: MembershipSummary[];
+  };
 };
 
 export type Ctx = Context<AppEnv>;
 
 export const route = () => new Hono<AppEnv>();
+
+/**
+ * Permission gate for a route. Throws ForbiddenError, which the error handler
+ * renders as 403 — except for anything reached by id, where the repo has
+ * already answered 404 first.
+ */
+export { require_ as requirePermission } from './lib/perm';
 
 /** Flash codes carried across redirects as `?m=` / `?e=`. */
 export const MESSAGES: Record<string, string> = {
@@ -48,14 +74,27 @@ export function flashOf(c: Ctx): { kind: 'ok' | 'err' | 'warn'; text: string } |
 
 /** Common props every authenticated page needs. */
 export function page(c: Ctx, title: string) {
+  const account = c.get('account');
   return {
     t: c.get('t'),
-    user: c.get('user'),
+    // The layout wants a name and a role label, not an identity record.
+    user: { id: account.account_id, name: account.display_name ?? '', role: roleLabel(c) },
     locale: c.get('locale'),
     path: new URL(c.req.url).pathname,
     flash: flashOf(c),
     title,
   };
+}
+
+/**
+ * What to show next to the person's name. Derived from the resolved membership,
+ * never from a column on the account — an account has no role, because the same
+ * person may be an owner in one business and a resident in another.
+ */
+function roleLabel(c: Ctx): string {
+  const tctx = c.get('tctx');
+  const membership = c.get('memberships')?.find((m) => m.tenant_id === tctx?.tenantId);
+  return membership?.role_key ?? '';
 }
 
 export function back(c: Ctx, path: string, msg?: string, isError = false) {
